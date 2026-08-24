@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Github, ExternalLink, Code2 } from "lucide-react";
+import { Plus, Trash2, Github, ExternalLink, Code2, Edit3, Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
@@ -44,6 +44,7 @@ const STATUS_EMOJI: Record<string, string> = {
 export default function ProjectsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["projects"],
@@ -59,9 +60,23 @@ export default function ProjectsPage() {
       }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Project added! 🚀");
+      toast.success("Project created! 🚀");
       setOpen(false);
       form.reset();
+    },
+  });
+
+  const updateProject = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProjectFormValues> }) =>
+      fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Project updated!");
+      setEditingProject(null);
     },
   });
 
@@ -82,28 +97,38 @@ export default function ProjectsPage() {
     },
   });
 
+  const handleProgressSlider = (id: string, newProgress: number) => {
+    updateProject.mutate({ id, data: { progress: newProgress } });
+  };
+
+  const handleStatusChange = (id: string, newStatus: string) => {
+    updateProject.mutate({ id, data: { status: newStatus as any } });
+  };
+
   return (
-    <div>
-      <PageHeader title="🛠️ Projects" description="Build your portfolio. One commit at a time.">
+    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+      <PageHeader title="🛠️ Projects" description="Build your portfolio. Track progress from idea to deployment.">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="w-4 h-4 mr-2" /> New Project</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+              <Plus className="w-4 h-4" /> New Project
+            </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>New Project</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Create New Project</DialogTitle></DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((d) => createProject.mutate(d))} className="space-y-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Project Name</FormLabel>
-                    <FormControl><Input placeholder="e.g. AI Chatbot with Memory" {...field} /></FormControl>
+                    <FormControl><Input placeholder="e.g. StudentOS Academic Platform" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="stack" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tech Stack</FormLabel>
-                    <FormControl><Input placeholder="e.g. Python, FastAPI, LangChain" {...field} /></FormControl>
+                    <FormControl><Input placeholder="e.g. Next.js, TypeScript, Tailwind, Supabase" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -123,7 +148,7 @@ export default function ProjectsPage() {
                   )} />
                   <FormField control={form.control} name="progress" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Progress %</FormLabel>
+                      <FormLabel>Initial Progress %</FormLabel>
                       <FormControl>
                         <Input type="number" min={0} max={100} {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                       </FormControl>
@@ -133,18 +158,18 @@ export default function ProjectsPage() {
                 <FormField control={form.control} name="milestone" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Next Milestone</FormLabel>
-                    <FormControl><Input placeholder="What's the next thing to build?" {...field} /></FormControl>
+                    <FormControl><Input placeholder="What's the next feature to build?" {...field} /></FormControl>
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="github" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>GitHub URL</FormLabel>
-                    <FormControl><Input placeholder="https://github.com/..." {...field} /></FormControl>
+                    <FormLabel>GitHub Repo URL</FormLabel>
+                    <FormControl><Input placeholder="https://github.com/username/repo" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full" disabled={createProject.isPending}>
-                  {createProject.isPending ? "Saving..." : "Create Project"}
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={createProject.isPending}>
+                  {createProject.isPending ? "Creating..." : "Create Project"}
                 </Button>
               </form>
             </Form>
@@ -154,7 +179,7 @@ export default function ProjectsPage() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-52 rounded-xl bg-muted animate-pulse" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-56 rounded-xl bg-muted animate-pulse" />)}
         </div>
       ) : projects.length === 0 ? (
         <EmptyState icon={Code2} title="No projects yet" description="Start building your portfolio today!" />
@@ -163,29 +188,51 @@ export default function ProjectsPage() {
           <AnimatePresence>
             {projects.map((p) => (
               <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}>
-                <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 h-full flex flex-col">
+                <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 h-full flex flex-col group relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base leading-tight">{p.name}</CardTitle>
-                      <Badge variant={STATUS_COLORS[p.status] ?? "secondary"} className="text-xs shrink-0">
-                        {STATUS_EMOJI[p.status]} {p.status.replace("_"," ")}
-                      </Badge>
+                      <CardTitle className="text-base leading-tight font-bold">{p.name}</CardTitle>
+                      
+                      {/* Status Selector */}
+                      <Select value={p.status} onValueChange={(val) => handleStatusChange(p.id, val)}>
+                        <SelectTrigger className="h-7 text-xs w-32 px-2 border-primary/20">
+                          <SelectValue>{STATUS_EMOJI[p.status]} {p.status.replace("_", " ")}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["NOT_STARTED","IN_PROGRESS","COMPLETED","ON_HOLD"].map((s) => (
+                            <SelectItem key={s} value={s}>{STATUS_EMOJI[s]} {s.replace("_"," ")}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <p className="text-xs text-blue-500 font-mono mt-1">⚙ {p.stack}</p>
                   </CardHeader>
-                  <CardContent className="flex-1 space-y-3">
+
+                  <CardContent className="flex-1 space-y-4">
                     {p.milestone && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg border">
                         🎯 Next: <span className="text-foreground font-medium">{p.milestone}</span>
                       </p>
                     )}
-                    <div>
-                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>Progress</span><span className="font-semibold">{p.progress}%</span>
+
+                    {/* Interactive Progress Slider */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Completion Progress</span>
+                        <span className="font-semibold text-foreground">{p.progress}%</span>
                       </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={p.progress}
+                        onChange={(e) => handleProgressSlider(p.id, Number(e.target.value))}
+                        className="w-full accent-blue-500 cursor-pointer"
+                      />
                       <Progress value={p.progress} className="h-1.5" />
                     </div>
-                    <div className="flex items-center justify-between pt-1">
+
+                    <div className="flex items-center justify-between pt-2 border-t">
                       <div className="flex gap-2">
                         {p.github && (
                           <a href={p.github} target="_blank" rel="noreferrer">
@@ -194,12 +241,17 @@ export default function ProjectsPage() {
                         )}
                         {p.liveUrl && (
                           <a href={p.liveUrl} target="_blank" rel="noreferrer">
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><ExternalLink className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-500"><ExternalLink className="w-3.5 h-3.5" /></Button>
                           </a>
                         )}
                       </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => deleteProject.mutate(p.id)}>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteProject.mutate(p.id)}
+                      >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
