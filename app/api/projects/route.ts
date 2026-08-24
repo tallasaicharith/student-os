@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { db, getOrCreateDevUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 import { projectSchema } from "@/lib/validations/project.schema";
 
 export async function GET() {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const projects = await db.project.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -23,7 +23,7 @@ const DEFAULT_PROJECTS = [
 
 export async function POST(req: Request) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const body = await req.json();
     const data = projectSchema.parse(body);
 

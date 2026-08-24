@@ -1,17 +1,19 @@
 "use client";
 
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { motion } from "framer-motion";
+import { useUser, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { useUIStore } from "@/stores/ui.store";
 import { getGreeting } from "@/lib/utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navbar() {
   const { toggleSidebar, setCommandPaletteOpen } = useUIStore();
-  const firstName = "Sai";
+  const { user, isLoaded } = useUser();
+  const firstName = user?.firstName || "Student";
 
   return (
     <motion.header
@@ -68,11 +70,14 @@ export function Navbar() {
         <NotificationBell />
         <ThemeToggle />
         
-        {/* Mock user avatar instead of Clerk UserButton */}
-        <Avatar className="h-8 w-8 cursor-pointer border border-primary/20">
-          <AvatarImage src="https://api.dicebear.com/7.x/adventurer/svg?seed=Sai" alt="Sai Charthik" />
-          <AvatarFallback>SC</AvatarFallback>
-        </Avatar>
+        {/* Clerk User Button with Profile & Sign Out */}
+        {isLoaded && user ? (
+          <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
+        ) : (
+          <Avatar className="h-8 w-8 border border-primary/20">
+            <AvatarFallback>{firstName.substring(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+        )}
       </div>
     </motion.header>
   );

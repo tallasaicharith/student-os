@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, getOrCreateDevUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 import { taskSchema } from "@/lib/validations/task.schema";
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     
     // Parse date query parameter, default to today's date
     const { searchParams } = new URL(req.url);
@@ -46,7 +46,7 @@ const DEFAULT_TASKS = [
 
 export async function POST(req: Request) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const body = await req.json();
     const data = taskSchema.parse(body);
 

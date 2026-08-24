@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { db, getOrCreateDevUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 
 // Toggle a habit log for today
 export async function POST(req: Request) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const { habitId } = await req.json();
     const today = new Date(new Date().toISOString().slice(0, 10));
 

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { db, getOrCreateDevUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const { id } = await params;
     const body = await req.json();
 
@@ -31,7 +31,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const { id } = await params;
 
     const task = await db.task.findUnique({ where: { id } });

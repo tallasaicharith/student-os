@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { db, getOrCreateDevUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 
 export async function GET() {
   try {
-    const userId = await getOrCreateDevUser();
+    const userId = await getOrCreateUser();
     const today = new Date().toISOString().slice(0, 10);
 
     const habits = await db.habit.findMany({

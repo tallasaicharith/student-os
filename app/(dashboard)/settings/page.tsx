@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
+import { useUser } from "@clerk/nextjs";
 import {
   Settings, User, Bell, Shield, Eye, Palette, Database,
   Check, Save, Sparkles, AlertCircle, RefreshCw
@@ -17,13 +18,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
-  const user = {
-    fullName: "Sai Charthik",
-    primaryEmailAddress: { emailAddress: "dev@studentos.local" },
-    firstName: "Sai",
-    lastName: "Charthik",
-    imageUrl: "https://api.dicebear.com/7.x/adventurer/svg?seed=Sai",
-  };
+  const { user } = useUser();
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState(true);
   const [weeklyDigest, setWeeklyDigest] = useState(true);
