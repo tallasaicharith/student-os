@@ -3,8 +3,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  BookOpen, Trophy, Sparkles, BookMarked, Plus, HelpCircle,
-  Quote, Heart, Calendar, Bookmark, FileText
+  BookOpen, Plus, Bookmark, BookMarked, Sparkles, Quote, Trash2, CheckCircle, Edit3
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,14 +11,41 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { toast } from "sonner";
+
+interface BookItem {
+  id: string;
+  title: string;
+  author: string;
+  read: number;
+  total: number;
+  category: string;
+}
 
 export default function ReadingHubPage() {
   const [chapter, setChapter] = useState(1);
   const [verse, setVerse] = useState(1);
   const [reflections, setReflections] = useState("");
-  const [logs, setLogs] = useState<{ id: string; chapter: number; verse: number; note: string }[]>([]);
+  const [logs, setLogs] = useState<{ id: string; chapter: number; verse: number; note: string }[]>([
+    { id: "1", chapter: 2, verse: 47, note: "Focus on your duty without attachment to outcomes." }
+  ]);
+
+  const [books, setBooks] = useState<BookItem[]>([
+    { id: "b1", title: "Atomic Habits", author: "James Clear", read: 120, total: 320, category: "Mindset" },
+    { id: "b2", title: "Grokking Algorithms", author: "Aditya Bhargava", read: 80, total: 256, category: "Technical" },
+    { id: "b3", title: "The 5 AM Club", author: "Robin Sharma", read: 45, total: 450, category: "Self-Help" }
+  ]);
+
+  // Dialog state for adding new book
+  const [newBookOpen, setNewBookOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newAuthor, setNewAuthor] = useState("");
+  const [newCategory, setNewCategory] = useState("Technical");
+  const [newTotalPages, setNewTotalPages] = useState("300");
 
   const handleLogGita = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +63,97 @@ export default function ReadingHubPage() {
     toast.success(`Logged progress: Chapter ${chapter}, Verse ${verse}! 🛐`);
   };
 
+  const handleAddBook = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    const book: BookItem = {
+      id: Math.random().toString(),
+      title: newTitle.trim(),
+      author: newAuthor.trim() || "Unknown Author",
+      category: newCategory,
+      read: 0,
+      total: parseInt(newTotalPages) || 200,
+    };
+
+    setBooks((prev) => [book, ...prev]);
+    setNewTitle("");
+    setNewAuthor("");
+    setNewBookOpen(false);
+    toast.success(`Added "${book.title}" to Reading Shelf! 📚`);
+  };
+
+  const handleAddPages = (id: string, pagesToAdd: number) => {
+    setBooks((prev) =>
+      prev.map((b) => {
+        if (b.id === id) {
+          const updated = Math.min(b.total, b.read + pagesToAdd);
+          toast.success(`Logged +${pagesToAdd} pages for ${b.title}! 📖`);
+          return { ...b, read: updated };
+        }
+        return b;
+      })
+    );
+  };
+
+  const handleDeleteBook = (id: string, title: string) => {
+    setBooks((prev) => prev.filter((b) => b.id !== id));
+    toast.success(`Removed "${title}" from shelf`);
+  };
+
+  const handleDeleteLog = (id: string) => {
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    toast.success("Reflection entry removed");
+  };
+
+  const totalPagesRead = books.reduce((acc, b) => acc + b.read, 0);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      <PageHeader title="📖 Reading Hub" description="Track textbooks, self-help books, and Bhagavad Gita progress" />
+      <div className="flex justify-between items-start">
+        <PageHeader title="📖 Reading Hub" description="Track textbooks, self-help books, and Bhagavad Gita progress" />
+        
+        <Dialog open={newBookOpen} onOpenChange={setNewBookOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5 mt-2">
+              <Plus className="w-4 h-4" /> Add New Book
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-blue-500" /> Add Book to Reading Shelf
+              </DialogTitle>
+              <DialogDescription>Add a new textbook, technical manual, or self-help book to track.</DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleAddBook} className="space-y-4 py-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">Book Title</label>
+                <Input placeholder="e.g., Designing Data-Intensive Applications" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">Author</label>
+                <Input placeholder="e.g., Martin Kleppmann" value={newAuthor} onChange={(e) => setNewAuthor(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold">Category</label>
+                  <Input placeholder="e.g., Technical, Mindset, Research" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold">Total Pages</label>
+                  <Input type="number" min={10} value={newTotalPages} onChange={(e) => setNewTotalPages(e.target.value)} required />
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5">
+                <Plus className="w-4 h-4" /> Add Book
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Gita Progress Widget & Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -85,18 +199,18 @@ export default function ReadingHubPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">Reading Speed</span>
-                <span className="text-blue-500">0 Pages / hr</span>
+                <span className="text-muted-foreground">Total Pages Read</span>
+                <span className="text-blue-500">{totalPagesRead} Pages</span>
               </div>
-              <Progress value={0} className="h-1.5" />
+              <Progress value={Math.min(100, (totalPagesRead / 500) * 100)} className="h-1.5" />
             </div>
             
             <div className="space-y-1">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">Weekly Goal (140 Pages)</span>
-                <span className="text-emerald-500">0 / 140 Pg</span>
+                <span className="text-muted-foreground">Active Books Shelf</span>
+                <span className="text-emerald-500">{books.length} Books</span>
               </div>
-              <Progress value={0} className="h-1.5" />
+              <Progress value={Math.min(100, (books.length / 5) * 100)} className="h-1.5" />
             </div>
 
             <div className="p-3 bg-muted/40 border rounded-lg text-xs leading-relaxed italic flex gap-2">
@@ -117,29 +231,56 @@ export default function ReadingHubPage() {
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BookMarked className="w-4 h-4 text-blue-500" />
-              General Reading Shelf
+              General Reading Shelf ({books.length})
             </CardTitle>
-            <CardDescription>Pages logged per book</CardDescription>
+            <CardDescription>Log pages read or remove finished books</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {MOCK_BOOKS.map((book, idx) => (
-              <div key={idx} className="p-3 bg-muted/40 border rounded-xl space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="text-xs font-bold">{book.title}</h4>
-                    <span className="text-[10px] text-muted-foreground">by {book.author}</span>
+            {books.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-6">No books on your shelf yet. Click "Add New Book" above!</p>
+            ) : (
+              books.map((book) => {
+                const pct = Math.round((book.read / book.total) * 100);
+                return (
+                  <div key={book.id} className="p-3 bg-muted/40 border rounded-xl space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-xs font-bold">{book.title}</h4>
+                        <span className="text-[10px] text-muted-foreground">by {book.author}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">{book.category}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteBook(book.id, book.title)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{book.read} / {book.total} pages ({pct}%)</span>
+                      </div>
+                      <Progress value={pct} className="h-1.5" />
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => handleAddPages(book.id, 10)}>
+                        +10 Pages
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => handleAddPages(book.id, 25)}>
+                        +25 Pages
+                      </Button>
+                    </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">{book.category}</Badge>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{book.read} / {book.total} pages ({Math.round(book.read / book.total * 100)}%)</span>
-                  </div>
-                  <Progress value={book.read / book.total * 100} className="h-1.5" />
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -148,20 +289,31 @@ export default function ReadingHubPage() {
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-orange-500" />
-              Spiritual Gita Reflections
+              Spiritual Gita Reflections ({logs.length})
             </CardTitle>
             <CardDescription>Historical review of read verses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {logs.map((log) => (
-              <div key={log.id} className="p-3 bg-muted/40 border rounded-xl space-y-1">
-                <div className="flex justify-between items-center text-xs font-semibold">
-                  <span className="text-orange-500 font-mono">BG Ch {log.chapter}, Verse {log.verse}</span>
-                  <span className="text-[10px] text-muted-foreground">Logged recently</span>
+            {logs.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-6">No reflections logged yet.</p>
+            ) : (
+              logs.map((log) => (
+                <div key={log.id} className="p-3 bg-muted/40 border rounded-xl space-y-1 relative group">
+                  <div className="flex justify-between items-center text-xs font-semibold">
+                    <span className="text-orange-500 font-mono">BG Ch {log.chapter}, Verse {log.verse}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleDeleteLog(log.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-foreground/95 italic">&ldquo;{log.note}&rdquo;</p>
                 </div>
-                <p className="text-xs text-foreground/95 italic">&ldquo;{log.note}&rdquo;</p>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -169,9 +321,3 @@ export default function ReadingHubPage() {
     </div>
   );
 }
-
-const MOCK_BOOKS = [
-  { title: "Atomic Habits", author: "James Clear", read: 0, total: 320, category: "Mindset" },
-  { title: "Grokking Algorithms", author: "Aditya Bhargava", read: 0, total: 256, category: "Technical" },
-  { title: "The 5 AM Club", author: "Robin Sharma", read: 0, total: 450, category: "Self-Help" }
-];

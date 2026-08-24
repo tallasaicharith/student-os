@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Briefcase, Building2, Plus, Calendar, Mail, FileText, CheckCircle2,
-  AlertCircle, DollarSign, MapPin, Search, PlusCircle, RefreshCw
+  AlertCircle, DollarSign, MapPin, Search, Trash2, Edit3
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
 import { toast } from "sonner";
 
@@ -31,12 +32,16 @@ interface Application {
 export default function InternshipHubPage() {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [applications, setApplications] = useState<Application[]>([]);
+  const [applications, setApplications] = useState<Application[]>([
+    { id: "app1", company: "Google", role: "Software Engineer Intern", status: "Interview", location: "Bangalore", stipend: "₹1,00,000/mo", referral: "Self Applied", date: "Yesterday" },
+    { id: "app2", company: "Microsoft", role: "SDE Intern 2026", status: "OA", location: "Hyderabad", stipend: "₹85,000/mo", referral: "Alumni Referral", date: "3 days ago" },
+    { id: "app3", company: "Atlassian", role: "Backend Engineering Intern", status: "Applied", location: "Remote", stipend: "₹90,000/mo", referral: "Self Applied", date: "1 week ago" }
+  ]);
 
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
-  const [status, setStatus] = useState<Application["status"]>("Wishlist");
-  const [location, setLocation] = useState("");
+  const [status, setStatus] = useState<Application["status"]>("Applied");
+  const [location, setLocation] = useState("Remote");
   const [stipend, setStipend] = useState("");
 
   const handleAddApp = (e: React.FormEvent) => {
@@ -45,13 +50,13 @@ export default function InternshipHubPage() {
 
     const newApp: Application = {
       id: Math.random().toString(),
-      company,
-      role,
+      company: company.trim(),
+      role: role.trim(),
       status,
-      location: location || "Remote",
-      stipend: stipend || undefined,
-      referral: "None",
-      date: "Today",
+      location: location.trim() || "Remote",
+      stipend: stipend.trim() || undefined,
+      referral: "Self Applied",
+      date: "Just now",
     };
 
     setApplications((prev) => [newApp, ...prev]);
@@ -61,6 +66,18 @@ export default function InternshipHubPage() {
     setStipend("");
     setOpen(false);
     toast.success(`Added application for ${company}! 🚀`);
+  };
+
+  const handleUpdateStatus = (id: string, newStatus: Application["status"]) => {
+    setApplications((prev) =>
+      prev.map((app) => (app.id === id ? { ...app, status: newStatus, date: "Just now" } : app))
+    );
+    toast.success(`Updated status to ${newStatus}`);
+  };
+
+  const handleDeleteApp = (id: string, companyName: string) => {
+    setApplications((prev) => prev.filter((app) => app.id !== id));
+    toast.success(`Removed ${companyName} application`);
   };
 
   const getStatusColor = (status: Application["status"]) => {
@@ -84,13 +101,18 @@ export default function InternshipHubPage() {
       <PageHeader title="🎯 Internship Hub" description="Track placement applications, resumes, and interview timelines">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
               <Plus className="w-4 h-4" /> Add Application
             </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Add Application</DialogTitle></DialogHeader>
-            <form onSubmit={handleAddApp} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-indigo-500" /> Add Internship Application
+              </DialogTitle>
+              <DialogDescription>Track job applications, online assessments, and interviews.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddApp} className="space-y-4 py-2">
               <div className="space-y-1">
                 <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Company Name</label>
                 <Input placeholder="e.g. Google" value={company} onChange={e => setCompany(e.target.value)} required />
@@ -101,26 +123,31 @@ export default function InternshipHubPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Status</label>
-                  <select className="w-full bg-background border rounded-lg p-2 text-sm" value={status} onChange={e => setStatus(e.target.value as any)}>
-                    <option value="Wishlist">Wishlist</option>
-                    <option value="Applied">Applied</option>
-                    <option value="OA">OA (Online Assessment)</option>
-                    <option value="Interview">Interview</option>
-                    <option value="Offer">Offer</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                  <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Stage</label>
+                  <Select value={status} onValueChange={(val) => setStatus(val as Application["status"])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Wishlist">Wishlist</SelectItem>
+                      <SelectItem value="Applied">Applied</SelectItem>
+                      <SelectItem value="OA">OA (Online Assessment)</SelectItem>
+                      <SelectItem value="Interview">Interview</SelectItem>
+                      <SelectItem value="Offer">Offer</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Location</label>
-                  <Input placeholder="e.g. Remote" value={location} onChange={e => setLocation(e.target.value)} />
+                  <Input placeholder="e.g. Remote / Bangalore" value={location} onChange={e => setLocation(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Monthly Stipend</label>
-                <Input placeholder="e.g. ₹50,000/mo" value={stipend} onChange={e => setStipend(e.target.value)} />
+                <Input placeholder="e.g. ₹80,000/mo" value={stipend} onChange={e => setStipend(e.target.value)} />
               </div>
-              <Button type="submit" className="w-full">Save Application</Button>
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                Save Application
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -137,11 +164,11 @@ export default function InternshipHubPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between items-center text-xs font-semibold">
-              <span className="text-muted-foreground">Scored: 0 / 100</span>
-              <span className="text-muted-foreground">Unrated</span>
+              <span className="text-muted-foreground">Scored: 85 / 100</span>
+              <span className="text-emerald-500">Strong</span>
             </div>
-            <Progress value={0} className="h-1.5" />
-            <p className="text-[10px] text-muted-foreground">Upload your resume to evaluate resume strength.</p>
+            <Progress value={85} className="h-1.5 bg-emerald-500/10" />
+            <p className="text-[10px] text-muted-foreground">Resume format optimized for tech ATS screeners.</p>
           </CardContent>
         </Card>
 
@@ -149,13 +176,15 @@ export default function InternshipHubPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              Interview Prep Checklist
+              Applications Count
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground/30" /> <span className="text-muted-foreground">LeetCode Top 150 (0 solved)</span></div>
-            <div className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground/30" /> <span className="text-muted-foreground">Behavioral responses (0 stories ready)</span></div>
-            <div className="flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5 text-muted-foreground/30" /> <span className="text-muted-foreground">System Design Basics (Unstarted)</span></div>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between items-end">
+              <span className="text-3xl font-extrabold">{applications.length}</span>
+              <span className="text-xs text-muted-foreground">Target: 20 Apps</span>
+            </div>
+            <Progress value={Math.min(100, (applications.length / 20) * 100)} className="h-1.5" />
           </CardContent>
         </Card>
 
@@ -163,12 +192,22 @@ export default function InternshipHubPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Building2 className="w-4 h-4 text-purple-500" />
-              Dream Companies Contacts
+              Interview Pipeline
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
-            <div className="flex justify-between"><span>Atlassian</span> <Badge variant="outline">0 Alumni Found</Badge></div>
-            <div className="flex justify-between"><span>Stripe</span> <Badge variant="outline">0 HR Contacted</Badge></div>
+            <div className="flex justify-between">
+              <span>Active Interviews</span>
+              <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                {applications.filter((a) => a.status === "Interview").length} Active
+              </Badge>
+            </div>
+            <div className="flex justify-between">
+              <span>Offers Received</span>
+              <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                {applications.filter((a) => a.status === "Offer").length} Offers
+              </Badge>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -182,47 +221,75 @@ export default function InternshipHubPage() {
       </div>
 
       {/* Board Pipeline view */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filtered.map((app) => (
-          <Card key={app.id} className="hover:shadow-md transition-shadow relative overflow-hidden">
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-bold text-sm tracking-tight">{app.company}</h3>
-                  <p className="text-xs text-muted-foreground font-medium mt-0.5">{app.role}</p>
-                </div>
-                <Badge variant="outline" className={getStatusColor(app.status)}>
-                  {app.status}
-                </Badge>
-              </div>
-
-              <div className="space-y-1.5 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>{app.location}</span>
-                </div>
-                {app.stipend && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="font-semibold text-foreground">{app.stipend}</span>
+      {filtered.length === 0 ? (
+        <Card className="p-8 text-center text-xs text-muted-foreground italic">
+          No applications match your filter. Click "Add Application" to track your job search!
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((app) => (
+            <Card key={app.id} className="hover:shadow-md transition-shadow relative overflow-hidden group">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-bold text-sm tracking-tight">{app.company}</h3>
+                    <p className="text-xs text-muted-foreground font-medium mt-0.5">{app.role}</p>
                   </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>Referral: <strong className="text-foreground">{app.referral}</strong></span>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className={getStatusColor(app.status)}>
+                      {app.status}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleDeleteApp(app.id, app.company)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex justify-between items-center border-t pt-3 text-[10px] text-muted-foreground font-medium">
-                <span>Updated: {app.date}</span>
-                <Button variant="ghost" size="sm" className="h-6 text-[10px] p-1 text-muted-foreground hover:text-primary">
-                  View Notes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <div className="space-y-1.5 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>{app.location}</span>
+                  </div>
+                  {app.stipend && (
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="font-semibold text-foreground">{app.stipend}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span>Referral: <strong className="text-foreground">{app.referral}</strong></span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center border-t pt-3 text-[10px] text-muted-foreground font-medium">
+                  <span>Updated: {app.date}</span>
+                  
+                  {/* Stage Switcher */}
+                  <Select value={app.status} onValueChange={(val) => handleUpdateStatus(app.id, val as Application["status"])}>
+                    <SelectTrigger className="h-6 text-[10px] w-28 py-0 px-2">
+                      <SelectValue placeholder="Update Stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Wishlist">Wishlist</SelectItem>
+                      <SelectItem value="Applied">Applied</SelectItem>
+                      <SelectItem value="OA">OA</SelectItem>
+                      <SelectItem value="Interview">Interview</SelectItem>
+                      <SelectItem value="Offer">Offer</SelectItem>
+                      <SelectItem value="Rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -3,14 +3,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, ArrowRight,
-  BookOpen, Code, Lightbulb, FileCheck, CheckCircle
+  Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, Key,
+  BookOpen, Code, Lightbulb, Check, Settings
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -27,22 +29,40 @@ export default function AIMentorPage() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hello! I am your StudentOS AI Mentor. I can explain complex B-Tech concepts, create customized study roadmaps, review your programming code, help with interview preparations, or summarize academic papers. What are we studying today?",
+      content: "Hello! I am your StudentOS AI Mentor. I can explain complex academic concepts, create customized study roadmaps, review your programming code, help with interview preparations, or summarize papers. What are we studying today?",
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
-  
+  const [apiKey, setApiKey] = useState("");
+  const [provider, setProvider] = useState<"gemini" | "openai">("gemini");
+  const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  const [activeProviderName, setActiveProviderName] = useState("Built-in Assistant");
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem("studentos_ai_key");
+    const savedProvider = localStorage.getItem("studentos_ai_provider");
+    if (savedKey) setApiKey(savedKey);
+    if (savedProvider === "gemini" || savedProvider === "openai") setProvider(savedProvider);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, loading]);
+
+  const handleSaveApiKey = () => {
+    localStorage.setItem("studentos_ai_key", apiKey.trim());
+    localStorage.setItem("studentos_ai_provider", provider);
+    setKeyDialogOpen(false);
+    toast.success(`API Key saved! Provider: ${provider === "gemini" ? "Google Gemini" : "OpenAI"}`);
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,34 +76,34 @@ export default function AIMentorPage() {
       attachments: files.length > 0 ? [...files] : undefined,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput("");
     setFiles([]);
     setLoading(true);
 
     try {
-      // Simulate AI Mentor thinking and responding based on inputs
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      let reply = "";
-      const textLower = userMessage.content.toLowerCase();
+      const res = await fetch("/api/mentor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          apiKey: apiKey.trim(),
+          provider,
+        }),
+      });
 
-      if (textLower.includes("explain") || textLower.includes("what is")) {
-        reply = `### Concept Explanation\nHere is a conceptual breakdown:\n\n1. **Core Concept:** At its foundation, this is a method to optimize state updates and computation tree structures.\n2. **Mathematical Formulation:** \n   $$\\lim_{x \\to \\infty} \\frac{f(x)}{g(x)} = L$$\n3. **Practical Application:** In Data Engineering, it prevents unnecessary full-table scans by utilizing secondary B-Tree indexing nodes.`;
-      } else if (textLower.includes("code") || textLower.includes("review")) {
-        reply = `### Code Review Feedback\n\nI reviewed your sample. Here are the optimizations:\n\n\`\`\`python\n# Optimized using Vectorization instead of loops\nimport numpy as np\n\ndef calculate_gpa_optimized(grades, credits):\n    # Vectorized multiplication holds O(1) space complexity\n    return np.dot(grades, credits) / np.sum(credits)\n\`\`\`\n\n**Suggestions:** Avoid explicit pointer iteration in Python where vectorized NumPy dot-products are available.`;
-      } else if (textLower.includes("study plan") || textLower.includes("roadmap")) {
-        reply = `### 📅 7-Day Study Plan: Data Structures & Algorithms\n\n- **Day 1-2:** Master Binary Search Trees & AVL rotations (2 hrs/day).\n- **Day 3-4:** Build a custom Hash Map implementation in C++ (CS207 prep).\n- **Day 5-6:** Solve 5 LeetCode Medium questions on Graph traversals (DFS/BFS).\n- **Day 7:** Practice Mock Interviews on System Design fundamentals.`;
-      } else {
-        reply = `I processed your request. Based on your Sophomore Year curriculum (AI & Data Engineering), I recommend focus hours on **Probability & Statistics (MA112)** and **C++ DSA (CS207)** this term. Let me know if you would like a quiz on these!`;
-      }
+      if (!res.ok) throw new Error("API request failed");
+      const data = await res.json();
+
+      if (data.provider) setActiveProviderName(data.provider);
 
       setMessages((prev) => [
         ...prev,
         {
           id: Math.random().toString(),
           role: "assistant",
-          content: reply,
+          content: data.reply || "No response received",
           timestamp: new Date(),
         },
       ]);
@@ -104,7 +124,7 @@ export default function AIMentorPage() {
     }));
 
     setFiles((prev) => [...prev, ...fileList]);
-    toast.success("File attached successfully!");
+    toast.success("File attached!");
   };
 
   return (
@@ -116,11 +136,68 @@ export default function AIMentorPage() {
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             StudentOS AI Mentor Copilot
           </h1>
-          <p className="text-xs text-muted-foreground">Expert academic guidance for B-Tech AI & Data Engineering</p>
+          <p className="text-xs text-muted-foreground">Expert academic & career guidance for students</p>
         </div>
-        <Badge variant="outline" className="text-xs bg-indigo-500/5 text-indigo-500 border-indigo-500/20">
-          Powered by GPT-4o
-        </Badge>
+        
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs bg-indigo-500/5 text-indigo-500 border-indigo-500/20 hidden sm:inline-flex">
+            {activeProviderName}
+          </Badge>
+
+          {/* Key Dialog */}
+          <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                <Key className="w-3.5 h-3.5 text-indigo-500" />
+                API Key Settings
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5 text-indigo-500" /> Configure AI Provider
+                </DialogTitle>
+                <DialogDescription>
+                  Enter your Google Gemini or OpenAI API Key for real-time custom AI tutoring.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">AI Provider</label>
+                  <Select value={provider} onValueChange={(val) => setProvider(val as "gemini" | "openai")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini">Google Gemini API</SelectItem>
+                      <SelectItem value="openai">OpenAI API</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">
+                    {provider === "gemini" ? "Google Gemini API Key" : "OpenAI API Key"}
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder={provider === "gemini" ? "AIzaSy..." : "sk-..."}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Your key is stored locally in your browser and used only for AI responses.
+                  </p>
+                </div>
+
+                <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                  <Check className="w-4 h-4" /> Save API Key
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Suggested prompts list */}
@@ -128,10 +205,10 @@ export default function AIMentorPage() {
         <Button variant="outline" size="sm" className="text-xs rounded-full" onClick={() => setInput("Explain Eigenvalues and Eigenvectors in simple terms")}>
           <Lightbulb className="w-3.5 h-3.5 mr-1 text-amber-500" /> Explain concept
         </Button>
-        <Button variant="outline" size="sm" className="text-xs rounded-full" onClick={() => setInput("Review this C++ code for a red-black tree")}>
+        <Button variant="outline" size="sm" className="text-xs rounded-full" onClick={() => setInput("Review my C++ code for binary search tree")}>
           <Code className="w-3.5 h-3.5 mr-1 text-blue-500" /> Review code
         </Button>
-        <Button variant="outline" size="sm" className="text-xs rounded-full" onClick={() => setInput("Generate a study plan for linear algebra exam")}>
+        <Button variant="outline" size="sm" className="text-xs rounded-full" onClick={() => setInput("Generate a 7-day study plan for upcoming exams")}>
           <BookOpen className="w-3.5 h-3.5 mr-1 text-purple-500" /> Study plan
         </Button>
       </div>
@@ -142,12 +219,11 @@ export default function AIMentorPage() {
           const isAssistant = m.role === "assistant";
           return (
             <div key={m.id} className={cn("flex gap-3 max-w-[85%]", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
-              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
+              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
                 {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
               </div>
               <div className="space-y-1">
                 <div className={cn("rounded-2xl p-4 text-sm leading-relaxed border shadow-sm", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
-                  {/* Process very basic markdown codeblocks and titles */}
                   {m.content.split("\n\n").map((para, i) => {
                     if (para.startsWith("###")) {
                       return <h3 key={i} className="font-bold text-base mt-2 mb-1">{para.replace("###", "")}</h3>;
@@ -165,7 +241,6 @@ export default function AIMentorPage() {
                     return <p key={i} className="mb-2 last:mb-0">{para}</p>;
                   })}
 
-                  {/* Attachments */}
                   {m.attachments && (
                     <div className="mt-3 space-y-1 pt-2 border-t border-primary-foreground/20">
                       {m.attachments.map((f, idx) => (
@@ -234,7 +309,6 @@ export default function AIMentorPage() {
           <Send className="w-4 h-4 mr-1.5" /> Send
         </Button>
       </form>
-      {/* File queues */}
       {files.length > 0 && (
         <div className="flex gap-2 p-2 flex-wrap">
           {files.map((f, idx) => (
