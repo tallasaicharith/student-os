@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Github, ExternalLink, Code2, Edit3, Check } from "lucide-react";
+import { Plus, Trash2, Github, ExternalLink, Code2, Check, Sparkles } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -18,7 +18,6 @@ import {
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -44,7 +43,6 @@ const STATUS_EMOJI: Record<string, string> = {
 export default function ProjectsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ["projects"],
@@ -75,8 +73,6 @@ export default function ProjectsPage() {
       }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Project updated!");
-      setEditingProject(null);
     },
   });
 
@@ -96,14 +92,6 @@ export default function ProjectsPage() {
       github: "", liveUrl: "", milestone: "",
     },
   });
-
-  const handleProgressSlider = (id: string, newProgress: number) => {
-    updateProject.mutate({ id, data: { progress: newProgress } });
-  };
-
-  const handleStatusChange = (id: string, newStatus: string) => {
-    updateProject.mutate({ id, data: { status: newStatus as any } });
-  };
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -186,82 +174,141 @@ export default function ProjectsPage() {
       ) : (
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <AnimatePresence>
-            {projects.map((p) => (
-              <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}>
-                <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 h-full flex flex-col group relative">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base leading-tight font-bold">{p.name}</CardTitle>
-                      
-                      {/* Status Selector */}
-                      <Select value={p.status} onValueChange={(val) => handleStatusChange(p.id, val)}>
-                        <SelectTrigger className="h-7 text-xs w-32 px-2 border-primary/20">
-                          <SelectValue>{STATUS_EMOJI[p.status]} {p.status.replace("_", " ")}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["NOT_STARTED","IN_PROGRESS","COMPLETED","ON_HOLD"].map((s) => (
-                            <SelectItem key={s} value={s}>{STATUS_EMOJI[s]} {s.replace("_"," ")}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <p className="text-xs text-blue-500 font-mono mt-1">⚙ {p.stack}</p>
-                  </CardHeader>
-
-                  <CardContent className="flex-1 space-y-4">
-                    {p.milestone && (
-                      <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg border">
-                        🎯 Next: <span className="text-foreground font-medium">{p.milestone}</span>
-                      </p>
-                    )}
-
-                    {/* Interactive Progress Slider */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Completion Progress</span>
-                        <span className="font-semibold text-foreground">{p.progress}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={p.progress}
-                        onChange={(e) => handleProgressSlider(p.id, Number(e.target.value))}
-                        className="w-full accent-blue-500 cursor-pointer"
-                      />
-                      <Progress value={p.progress} className="h-1.5" />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <div className="flex gap-2">
-                        {p.github && (
-                          <a href={p.github} target="_blank" rel="noreferrer">
-                            <Button variant="ghost" size="icon" className="h-7 w-7"><Github className="w-3.5 h-3.5" /></Button>
-                          </a>
-                        )}
-                        {p.liveUrl && (
-                          <a href={p.liveUrl} target="_blank" rel="noreferrer">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-500"><ExternalLink className="w-3.5 h-3.5" /></Button>
-                          </a>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => deleteProject.mutate(p.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onUpdateStatus={(id, status) => updateProject.mutate({ id, data: { status: status as any } })}
+                onUpdateProgress={(id, progress) => updateProject.mutate({ id, data: { progress } })}
+                onDelete={(id) => deleteProject.mutate(id)}
+              />
             ))}
           </AnimatePresence>
         </motion.div>
       )}
     </div>
+  );
+}
+
+function ProjectCard({
+  project,
+  onUpdateStatus,
+  onUpdateProgress,
+  onDelete,
+}: {
+  project: Project;
+  onUpdateStatus: (id: string, status: string) => void;
+  onUpdateProgress: (id: string, progress: number) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [localProgress, setLocalProgress] = useState(project.progress);
+
+  // Sync local progress when server project updates
+  useEffect(() => {
+    setLocalProgress(project.progress);
+  }, [project.progress]);
+
+  const handleSliderCommit = (val: number) => {
+    setLocalProgress(val);
+    onUpdateProgress(project.id, val);
+    toast.success(`Updated "${project.name}" progress to ${val}%! 🚀`);
+  };
+
+  const handleAddProgress = (delta: number) => {
+    const nextVal = Math.min(100, Math.max(0, localProgress + delta));
+    setLocalProgress(nextVal);
+    onUpdateProgress(project.id, nextVal);
+    toast.success(`Progress set to ${nextVal}%!`);
+  };
+
+  return (
+    <motion.div layout initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}>
+      <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 h-full flex flex-col group relative">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-base leading-tight font-bold">{project.name}</CardTitle>
+            
+            {/* Status Selector */}
+            <Select value={project.status} onValueChange={(val) => onUpdateStatus(project.id, val)}>
+              <SelectTrigger className="h-7 text-xs w-32 px-2 border-primary/20">
+                <SelectValue>{STATUS_EMOJI[project.status]} {project.status.replace("_", " ")}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {["NOT_STARTED","IN_PROGRESS","COMPLETED","ON_HOLD"].map((s) => (
+                  <SelectItem key={s} value={s}>{STATUS_EMOJI[s]} {s.replace("_"," ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-blue-500 font-mono mt-1">⚙ {project.stack}</p>
+        </CardHeader>
+
+        <CardContent className="flex-1 space-y-4">
+          {project.milestone && (
+            <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg border">
+              🎯 Next: <span className="text-foreground font-medium">{project.milestone}</span>
+            </p>
+          )}
+
+          {/* Smooth Interactive Range Slider */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Completion Progress</span>
+              <span className="font-semibold text-foreground">{localProgress}%</span>
+            </div>
+            
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={localProgress}
+              onChange={(e) => setLocalProgress(Number(e.target.value))}
+              onMouseUp={(e) => handleSliderCommit(Number((e.target as HTMLInputElement).value))}
+              onTouchEnd={(e) => handleSliderCommit(Number((e.target as HTMLInputElement).value))}
+              className="w-full accent-blue-500 cursor-pointer h-2 bg-muted rounded-lg appearance-none"
+            />
+            
+            <Progress value={localProgress} className="h-1.5" />
+
+            {/* Quick Action Progress Buttons */}
+            <div className="flex gap-1.5 pt-1 justify-between">
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleAddProgress(10)}>
+                +10%
+              </Button>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2" onClick={() => handleAddProgress(25)}>
+                +25%
+              </Button>
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 bg-emerald-500/10 text-emerald-500 border-emerald-500/20" onClick={() => handleAddProgress(100 - localProgress)}>
+                100% Done ✓
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t">
+            <div className="flex gap-2">
+              {project.github && (
+                <a href={project.github} target="_blank" rel="noreferrer">
+                  <Button variant="ghost" size="icon" className="h-7 w-7"><Github className="w-3.5 h-3.5" /></Button>
+                </a>
+              )}
+              {project.liveUrl && (
+                <a href={project.liveUrl} target="_blank" rel="noreferrer">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-500"><ExternalLink className="w-3.5 h-3.5" /></Button>
+                </a>
+              )}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              onClick={() => onDelete(project.id)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
