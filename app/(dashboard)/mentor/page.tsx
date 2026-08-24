@@ -39,7 +39,7 @@ export default function AIMentorPage() {
   const [apiKey, setApiKey] = useState("");
   const [provider, setProvider] = useState<"gemini" | "openai">("gemini");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
-  const [activeProviderName, setActiveProviderName] = useState("Built-in Assistant");
+  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI Mentor");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
