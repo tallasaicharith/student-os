@@ -1,0 +1,605 @@
+// Database Design Schema for StudentOS
+// Optimized for PostgreSQL via Supabase
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum TaskCategory {
+  STUDY
+  PROJECT
+  PERSONAL
+  FITNESS
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum SubjectPriority {
+  HIGH
+  MEDIUM
+  LOW
+  CERT
+}
+
+enum SubjectStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  NEEDS_REVISION
+}
+
+enum ProjectStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+enum Platform {
+  LEETCODE
+  GITHUB
+  CODEFORCES
+  HACKERRANK
+}
+
+enum ApplicationStatus {
+  WISHLIST
+  APPLIED
+  OA
+  INTERVIEW
+  OFFER
+  REJECTED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id // Clerk user ID
+  email     String   @unique
+  name      String?
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settings         UserSettings?
+  goals            Goal[]
+  tasks            Task[]
+  habits           Habit[]
+  habitLogs        HabitLog[]
+  books            Book[]
+  readingSessions  ReadingSession[]
+  gitaProgress     GitaProgress[]
+  courses          Course[]
+  subjects         Subject[]
+  assignments      Assignment[]
+  attendance       Attendance[]
+  cgpaLogs         CgpaLog[]
+  codingSessions   CodingSession[]
+  leetCodeStats    LeetCodeStats?
+  gitHubStats      GitHubStats?
+  projects         Project[]
+  applications     Application[]
+  runningSessions  RunningSession[]
+  gymWorkouts      GymWorkout[]
+  meals            Meal[]
+  weightLogs       WeightLog[]
+  journalEntries   JournalEntry[]
+  notes            Note[]
+  flashcards       Flashcard[]
+  researchPapers   ResearchPaper[]
+  certificates     Certificate[]
+  achievements     Achievement[]
+  notifications    Notification[]
+  studyLogs        StudyLog[]
+
+  @@map("users")
+}
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme           String  @default("system")
+  dailyPageGoal   Int     @default(20)
+  pomodoroMinutes Int     @default(25)
+  notifications   Boolean @default(true)
+  preferredLang   String  @default("en")
+
+  @@map("user_settings")
+}
+
+model Goal {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  category        String   // e.g., "Academic", "Coding", "Fitness"
+  targetDate      DateTime
+  currentProgress Float    @default(0.0)
+  targetProgress  Float    @default(100.0)
+  done            Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model Task {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  category  TaskCategory @default(STUDY)
+  priority  Priority     @default(MEDIUM)
+  dueDate   DateTime?
+  done      Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([userId, done])
+  @@map("tasks")
+}
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  emoji     String
+  order     Int        @default(0)
+  logs      HabitLog[]
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
+  @@map("habits")
+}
+
+model HabitLog {
+  id      String   @id @default(cuid())
+  habitId String
+  userId  String
+  habit   Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date    DateTime @db.Date
+  done    Boolean  @default(true)
+
+  @@unique([habitId, date])
+  @@index([userId, date])
+  @@map("habit_logs")
+}
+
+model Book {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  author          String?
+  totalPages      Int
+  readPages       Int              @default(0)
+  category        String           @default("Mindset")
+  coverUrl        String?
+  sessions        ReadingSession[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([userId])
+  @@map("books")
+}
+
+model ReadingSession {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  pagesRead    Int
+  minutesSpent Int
+  date         DateTime @db.Date
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([bookId])
+  @@map("reading_sessions")
+}
+
+model GitaProgress {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter    Int
+  verse      Int
+  completed  Boolean  @default(true)
+  reflection String?
+  readAt     DateTime @default(now())
+
+  @@unique([userId, chapter, verse])
+  @@index([userId])
+  @@map("gita_progress")
+}
+
+model Course {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  credit    Int
+  term      Int
+  subjects  Subject[]
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("courses")
+}
+
+model Subject {
+  id          String          @id @default(cuid())
+  userId      String
+  courseId    String?
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course      Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  code        String
+  name        String
+  term        Int
+  priority    SubjectPriority @default(MEDIUM)
+  status      SubjectStatus   @default(NOT_STARTED)
+  progress    Int             @default(0)
+  assignments Assignment[]
+  attendance  Attendance[]
+  studyLogs   StudyLog[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId])
+  @@map("subjects")
+}
+
+model Assignment {
+  id        String   @id @default(cuid())
+  userId    String
+  subjectId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  title     String
+  dueDate   DateTime
+  completed Boolean  @default(false)
+  grade     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([subjectId])
+  @@map("assignments")
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  userId    String
+  subjectId String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  date      DateTime         @db.Date
+  status    AttendanceStatus @default(PRESENT)
+
+  @@unique([subjectId, date])
+  @@index([userId])
+  @@map("attendance")
+}
+
+model CgpaLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  term      Int
+  gpa       Float
+  createdAt DateTime @default(now())
+
+  @@unique([userId, term])
+  @@map("cgpa_logs")
+}
+
+model CodingSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform        Platform
+  durationMinutes Int
+  language        String
+  problemsSolved  Int      @default(0)
+  date            DateTime @db.Date
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@map("coding_sessions")
+}
+
+model LeetCodeStats {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  easySolved   Int      @default(0)
+  mediumSolved Int      @default(0)
+  hardSolved   Int      @default(0)
+  totalSolved  Int      @default(0)
+  lastSync     DateTime @default(now())
+
+  @@map("leetcode_stats")
+}
+
+model GitHubStats {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commits  Int      @default(0)
+  repos    Int      @default(0)
+  lastSync DateTime @default(now())
+
+  @@map("github_stats")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  stack       String
+  status      ProjectStatus @default(NOT_STARTED)
+  progress    Int           @default(0)
+  github      String?
+  liveUrl     String?
+  milestone   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Company {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  industry     String?
+  website      String?
+  logoUrl      String?
+  applications Application[]
+
+  @@map("companies")
+}
+
+model Application {
+  id             String            @id @default(cuid())
+  userId         String
+  companyId      String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role           String
+  status         ApplicationStatus @default(WISHLIST)
+  stipend        Int?
+  location       String?
+  notes          String?
+  appliedDate    DateTime?
+  interviewDate  DateTime?
+  referralName   String?
+  referralEmail  String?
+  jobDescription String?           @db.Text
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@map("applications")
+}
+
+model RunningSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  distanceKm      Float
+  durationMinutes Float
+  paceMinPerKm    Float
+  date            DateTime @db.Date
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@map("running_sessions")
+}
+
+model GymWorkout {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splitName       String   // e.g., "Chest + Triceps"
+  durationMinutes Int
+  date            DateTime @db.Date
+  sets            GymSet[]
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@map("gym_workouts")
+}
+
+model GymSet {
+  id           String     @id @default(cuid())
+  workoutId    String
+  workout      GymWorkout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseName String
+  weightKg     Float
+  reps         Int
+  createdAt    DateTime   @default(now())
+
+  @@index([workoutId])
+  @@map("gym_sets")
+}
+
+model Meal {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  calories  Int
+  proteinG  Float
+  waterMl   Int      @default(0)
+  type      MealType @default(LUNCH)
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("meals")
+}
+
+model WeightLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg  Float
+  bodyFatPct Float?
+  bmi       Float?
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("weight_logs")
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  mood      String?  // e.g., "Excellent", "Tired", "Focused"
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("journal_entries")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @db.Text
+  tags      String[]
+  folder    String   @default("Notes")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("notes")
+}
+
+model Flashcard {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  front          String
+  back           String
+  nextReviewDate DateTime @default(now())
+  easeFactor     Float    @default(2.5)
+  intervalDays   Int      @default(0)
+  repetitions    Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@map("flashcards")
+}
+
+model ResearchPaper {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  authors     String
+  abstract    String?   @db.Text
+  fileUrl     String?
+  publishedAt DateTime?
+  journalName String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@map("research_papers")
+}
+
+model Certificate {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  issuer         String
+  issueDate      DateTime
+  credentialUrl  String?
+  category       String   // e.g., "Cloud", "AI/ML", "Development"
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@map("certificates")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  points      Int      @default(100)
+  unlockedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("achievements")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model StudyLog {
+  id        String   @id @default(cuid())
+  userId    String
+  subjectId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  minutes   Int
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("study_logs")
+}
