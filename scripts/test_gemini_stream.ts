@@ -1,9 +1,12 @@
-require('dotenv').config();
-const { GeminiProvider } = require('../lib/ai/providers/gemini');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { GeminiProvider } from '../lib/ai/providers/gemini';
 
 async function testGeminiStream() {
   console.log("=== TESTING GEMINI PROVIDER STREAM DIRECTLY ===");
   const provider = new GeminiProvider();
+  console.log("Using Key:", process.env.GEMINI_API_KEY ? `${process.env.GEMINI_API_KEY.slice(0, 15)}...` : "NONE");
 
   try {
     const stream = await provider.stream({
@@ -23,9 +26,8 @@ async function testGeminiStream() {
       text += decoder.decode(value);
     }
     console.log("Stream SUCCESS Output:\n", text);
-  } catch (err) {
-    console.error("Stream ERROR Caught:", err.message);
-    console.error("Full Error Stack:", err.stack);
+  } catch (err: any) {
+    console.error("Stream ERROR Status/Msg:", err.message);
   }
 }
 

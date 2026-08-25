@@ -43,7 +43,7 @@ export function FloatingAIChatbot() {
     setLoading(true);
 
     const botMessageId = Math.random().toString();
-    const savedKey = localStorage.getItem("studentos_gemini_key") || localStorage.getItem("studentos_openai_key") || "";
+    const savedKey = localStorage.getItem("studentos_gemini_key") || "";
 
     try {
       const res = await fetch("/api/ai/chat", {

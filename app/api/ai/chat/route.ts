@@ -24,8 +24,16 @@ export async function POST(req: NextRequest) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    // 1. Enforce Google Gemini API Key Resolution
-    let resolvedApiKey = reqApiKey ? String(reqApiKey).trim() : "";
+    // 1. Enforce Server Environment Active Gemini API Key (Overrides stale browser localStorage)
+    const envApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+    let resolvedApiKey = envApiKey;
+
+    if (!resolvedApiKey || resolvedApiKey.startsWith("sk-")) {
+      let clientKey = reqApiKey ? String(reqApiKey).trim() : "";
+      if (clientKey && !clientKey.startsWith("sk-")) {
+        resolvedApiKey = clientKey;
+      }
+    }
 
     if (!resolvedApiKey || resolvedApiKey.startsWith("sk-")) {
       try {
@@ -34,10 +42,6 @@ export async function POST(req: NextRequest) {
           resolvedApiKey = userConfig.geminiKey;
         }
       } catch (_dbErr) {}
-    }
-
-    if (!resolvedApiKey || resolvedApiKey.startsWith("sk-")) {
-      resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
     }
 
     // 2. LangChain Pipeline Direct Gemini Execution
