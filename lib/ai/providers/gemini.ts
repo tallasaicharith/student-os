@@ -7,12 +7,20 @@ export class GeminiProvider implements AIProvider {
   private getApiKey(reqKey?: string): string {
     const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     let key = reqKey;
+    
+    // Ignore OpenAI sk- keys or empty inputs
     if (!key || key.startsWith("sk-") || key.trim().length === 0) {
       key = envKey;
     }
+
     if (!key || key.trim().length === 0) {
-      throw new Error("Google Gemini API key is missing. Paste your Google AI Studio key in Settings.");
+      throw new Error("Google Gemini API key is missing. Get a free key starting with AIzaSy... at https://aistudio.google.com/app/apikey");
     }
+
+    if (key.startsWith("AQ.")) {
+      throw new Error("You entered a Google Cloud session token ('AQ...'). Google AI Studio requires an API Key starting with 'AIzaSy...' from https://aistudio.google.com/app/apikey");
+    }
+
     return key.trim();
   }
 
