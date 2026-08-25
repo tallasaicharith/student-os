@@ -1,7 +1,21 @@
 import { ModelConfig, ProviderName } from "./types";
 
 export const MODEL_REGISTRY: Record<string, ModelConfig> = {
-  // ── Google Gemini Models ───────────────────────────────────────────────────
+  // ── StudentOS Built-in AI Model (Free / No Key Required) ─────────────────
+  "studentos-ai": {
+    id: "studentos-ai",
+    name: "⚡ StudentOS AI (Built-in / Free)",
+    provider: "gemini",
+    capabilities: ["FAST", "BALANCED"],
+    contextWindow: 128000,
+    speed: "Ultra Fast",
+    quality: "High",
+    reasoningScore: 9,
+    supportsVision: false,
+    supportsStreaming: true,
+  },
+
+  // ── Google Gemini Models (Supported by Google AI Studio keys) ──────────────
   "gemini-2.0-flash": {
     id: "gemini-2.0-flash",
     name: "Gemini 2.0 Flash (Next-Gen)",
@@ -28,7 +42,7 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
   },
   "gemini-1.5-flash": {
     id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash (Standard)",
+    name: "Gemini 1.5 Flash (Fast)",
     provider: "gemini",
     capabilities: ["FAST", "BALANCED"],
     contextWindow: 1048576,
@@ -64,18 +78,6 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     supportsVision: true,
     supportsStreaming: true,
   },
-  "o3-mini": {
-    id: "o3-mini",
-    name: "o3-mini (STEM & Code Reasoning)",
-    provider: "openai",
-    capabilities: ["REASONING", "POWERFUL"],
-    contextWindow: 200000,
-    speed: "Moderate",
-    quality: "Superior",
-    reasoningScore: 10,
-    supportsVision: false,
-    supportsStreaming: true,
-  },
 
   // ── Anthropic Claude Models ────────────────────────────────────────────────
   "claude-3-5-sonnet-20241022": {
@@ -90,20 +92,8 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     supportsVision: true,
     supportsStreaming: true,
   },
-  "claude-3-5-haiku-20241022": {
-    id: "claude-3-5-haiku-20241022",
-    name: "Claude 3.5 Haiku (Lightning Fast)",
-    provider: "claude",
-    capabilities: ["FAST", "BALANCED"],
-    contextWindow: 200000,
-    speed: "Ultra Fast",
-    quality: "High",
-    reasoningScore: 8,
-    supportsVision: false,
-    supportsStreaming: true,
-  },
 
-  // ── Groq / DeepSeek Open Models ────────────────────────────────────────────
+  // ── Groq / DeepSeek Models ─────────────────────────────────────────────────
   "llama-3.3-70b-versatile": {
     id: "llama-3.3-70b-versatile",
     name: "Llama 3.3 70B (Groq Ultra-Fast)",
@@ -113,18 +103,6 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     speed: "Ultra Fast",
     quality: "Superior",
     reasoningScore: 9,
-    supportsVision: false,
-    supportsStreaming: true,
-  },
-  "deepseek-r1": {
-    id: "deepseek-r1",
-    name: "DeepSeek R1 (Open Reasoning)",
-    provider: "deepseek",
-    capabilities: ["REASONING", "POWERFUL"],
-    contextWindow: 128000,
-    speed: "Moderate",
-    quality: "State-of-the-Art",
-    reasoningScore: 10,
     supportsVision: false,
     supportsStreaming: true,
   },
