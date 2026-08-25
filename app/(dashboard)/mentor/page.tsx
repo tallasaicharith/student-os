@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, Key,
   BookOpen, Code, Lightbulb, Check, Copy, Download, HelpCircle,
-  Briefcase, Calendar, Terminal, FileCheck, RefreshCw, Cpu
+  Briefcase, Calendar, Terminal, FileCheck, RefreshCw, Cpu, StopCircle, RotateCcw,
+  Zap, Award, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MODEL_REGISTRY } from "@/lib/ai/models.config";
 
 interface Message {
   id: string;
@@ -25,43 +27,23 @@ interface Message {
   attachments?: { name: string; size: string }[];
 }
 
-type ProviderType = "gemini" | "openai" | "claude" | "deepseek" | "groq";
+type ProviderType = "gemini" | "openai" | "claude" | "groq" | "deepseek";
 
-const MODEL_OPTIONS: Record<ProviderType, { id: string; name: string }[]> = {
-  gemini: [
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Next-Gen)" },
-    { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep Reasoning)" },
-    { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Fast)" },
-  ],
-  openai: [
-    { id: "gpt-4o", name: "GPT-4o (Omniscience)" },
-    { id: "gpt-4o-mini", name: "GPT-4o Mini (Efficient)" },
-    { id: "o3-mini", name: "o3-mini (STEM & Code Reasoning)" },
-    { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
-  ],
-  claude: [
-    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (Best Coding)" },
-    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku (Lightning Fast)" },
-    { id: "claude-3-opus-20240229", name: "Claude 3 Opus (High Intelligence)" },
-  ],
-  deepseek: [
-    { id: "deepseek-chat", name: "DeepSeek-V3 (General Chat)" },
-    { id: "deepseek-reasoner", name: "DeepSeek-R1 (Full Reasoning)" },
-  ],
-  groq: [
-    { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B (Groq Ultra Fast)" },
-    { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B (MoE Architecture)" },
-    { id: "gemma2-9b-it", name: "Gemma 2 9B (Google Lightweight)" },
-  ],
+const BADGE_COLORS: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+  FAST: "secondary",
+  BALANCED: "outline",
+  POWERFUL: "default",
+  REASONING: "destructive",
+  VISION: "secondary",
 };
 
 const AI_MODES = [
-  { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What should I focus on today based on my active tasks and projects?" },
+  { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What pending tasks should I focus on today based on my StudentOS goals?" },
   { id: "explain", label: "🎓 Concept Explainer", icon: Lightbulb, prompt: "Explain the difference between Dynamic Programming and Greedy Algorithms with real-world code examples." },
-  { id: "code_review", label: "💻 Code Reviewer", icon: Code, prompt: "Review my code for bugs, edge cases, and time/space complexity:\n\n```cpp\nint findMax(int arr[], int n) {\n  int maxVal = arr[0];\n  for(int i=1; i<n; i++) if(arr[i]>maxVal) maxVal=arr[i];\n  return maxVal;\n}\n```" },
+  { id: "code_review", label: "💻 Code Reviewer", icon: Code, prompt: "Review my C++ code for bugs, edge cases, and O(N) time/space complexity:\n\n```cpp\n#include <vector>\n#include <iostream>\n\nint findMax(const std::vector<int>& arr) {\n  int maxVal = arr[0];\n  for(size_t i=1; i<arr.size(); i++) {\n    if(arr[i] > maxVal) maxVal = arr[i];\n  }\n  return maxVal;\n}\n```" },
   { id: "study_plan", label: "📅 Study Plan Builder", icon: Calendar, prompt: "Build a personalized 7-day intensive study schedule based on my active tasks and subjects." },
-  { id: "resume_review", label: "📄 ATS Resume Reviewer", icon: FileCheck, prompt: "Analyze my active StudentOS projects and write 3 high-impact, ATS-optimized resume bullet points." },
-  { id: "mock_interview", label: "⚡ Mock Interviewer", icon: Briefcase, prompt: "Ask me a technical mock interview question suitable for my active tech stack." },
+  { id: "resume_review", label: "📄 ATS Resume Reviewer", icon: FileCheck, prompt: "Analyze my active StudentOS projects and write 3 high-impact, ATS-optimized bullet points." },
+  { id: "mock_interview", label: "⚡ Mock Interviewer", icon: Briefcase, prompt: "Start a technical mock interview. Ask me one question at a time suitable for a Software Engineer role." },
   { id: "quiz_gen", label: "🧪 Exam Quiz Generator", icon: HelpCircle, prompt: "Generate 5 multiple-choice questions on Operating Systems (Process Scheduling & Deadlocks)." },
 ];
 
@@ -69,25 +51,24 @@ export default function AIMentorPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
-  const [apiKey, setApiKey] = useState("");
+  
   const [provider, setProvider] = useState<ProviderType>("gemini");
   const [modelName, setModelName] = useState("gemini-2.0-flash");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
-  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI (gemini-2.0-flash)");
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const savedKey = localStorage.getItem("studentos_ai_key");
     const savedProvider = localStorage.getItem("studentos_ai_provider") as ProviderType;
     const savedModel = localStorage.getItem("studentos_ai_model");
     const savedChat = localStorage.getItem("studentos_chat_history");
 
-    if (savedKey) setApiKey(savedKey);
     if (savedProvider) setProvider(savedProvider);
     if (savedModel) setModelName(savedModel);
 
@@ -105,7 +86,7 @@ export default function AIMentorPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS AI Mentor Copilot**. I support ChatGPT-style markdown tables, code syntax highlighting, and real-time streaming answers. How can I help you today?",
+        content: "Hello! I am your **StudentOS Multi-Model AI Copilot**. I support real-time token streaming, multi-provider model routing (Gemini, GPT-4o, Claude 3.5, DeepSeek R1), and specialized study tools. How can I assist you today?",
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -121,20 +102,15 @@ export default function AIMentorPage() {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, loading]);
+  }, [messages, loading, streaming]);
 
-  const handleProviderChange = (val: ProviderType) => {
-    setProvider(val);
-    const firstModel = MODEL_OPTIONS[val][0].id;
-    setModelName(firstModel);
-  };
-
-  const handleSaveApiKey = () => {
-    localStorage.setItem("studentos_ai_key", apiKey.trim());
-    localStorage.setItem("studentos_ai_provider", provider);
-    localStorage.setItem("studentos_ai_model", modelName);
-    setKeyDialogOpen(false);
-    toast.success(`Model updated to ${modelName} (${provider.toUpperCase()})`);
+  const handleStopStream = () => {
+    if (abortController) {
+      abortController.abort();
+      setStreaming(false);
+      setLoading(false);
+      toast.info("Generation stopped by user");
+    }
   };
 
   const handleClearChat = () => {
@@ -152,15 +128,7 @@ export default function AIMentorPage() {
   };
 
   const handleDeleteMessage = (id: string) => {
-    setMessages((prev) => {
-      const updated = prev.filter((m) => m.id !== id);
-      if (updated.length === 0) {
-        localStorage.removeItem("studentos_chat_history");
-      } else {
-        localStorage.setItem("studentos_chat_history", JSON.stringify(updated));
-      }
-      return updated;
-    });
+    setMessages((prev) => prev.filter((m) => m.id !== id));
     toast.success("Message deleted");
   };
 
@@ -213,17 +181,20 @@ export default function AIMentorPage() {
     setFiles([]);
     setLoading(true);
 
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
-      const res = await fetch("/api/mentor", {
+      const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          apiKey: apiKey.trim(),
           provider,
-          modelName,
+          model: modelName,
           mode: selectedMode,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error("API request failed");
@@ -238,6 +209,7 @@ export default function AIMentorPage() {
         },
       ]);
       setLoading(false);
+      setStreaming(true);
 
       if (!res.body) return;
 
@@ -255,41 +227,41 @@ export default function AIMentorPage() {
           prev.map((m) => (m.id === botMessageId ? { ...m, content: streamedContent } : m))
         );
       }
-    } catch {
-      toast.error("Failed to connect to AI Mentor");
+    } catch (err: unknown) {
+      if ((err as Error).name !== "AbortError") {
+        toast.error("Failed to connect to AI Mentor");
+      }
+    } finally {
       setLoading(false);
+      setStreaming(false);
+      setAbortController(null);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = e.target.files;
-    if (!uploadedFiles) return;
-
-    const fileList = Array.from(uploadedFiles).map((file) => ({
-      name: file.name,
-      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-    }));
-
-    setFiles((prev) => [...prev, ...fileList]);
-    toast.success("File attached!");
-  };
+  const currentModelConfig = MODEL_REGISTRY[modelName];
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] max-w-6xl mx-auto space-y-3">
-      {/* Top Header & Actions */}
+      {/* Top Header & Model Capabilities Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             StudentOS AI Mentor Copilot
           </h1>
-          <p className="text-xs text-muted-foreground">ChatGPT-Grade Real-Time AI Copilot (Gemini 2.0, GPT-4o, Claude 3.5, DeepSeek R1, Llama 3.3)</p>
+          <p className="text-xs text-muted-foreground">Multi-Model AI Platform (Google Gemini, OpenAI, Claude 3.5, DeepSeek, Groq)</p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs bg-indigo-500/5 text-indigo-500 border-indigo-500/20">
-            {activeProviderName}
-          </Badge>
+          {currentModelConfig && (
+            <div className="flex items-center gap-1.5 hidden md:flex">
+              {currentModelConfig.capabilities.map((cap) => (
+                <Badge key={cap} variant={BADGE_COLORS[cap] || "outline"} className="text-[10px] font-bold">
+                  {cap}
+                </Badge>
+              ))}
+            </div>
+          )}
 
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={handleExportChat}>
             <Download className="w-3.5 h-3.5" /> Export (.md)
@@ -302,75 +274,84 @@ export default function AIMentorPage() {
           {/* Key & Model Selector Dialog */}
           <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                <Cpu className="w-3.5 h-3.5 text-indigo-500" /> Switch Model & Key
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs bg-indigo-500/5 border-indigo-500/20 text-indigo-500 hover:bg-indigo-500/10">
+                <Cpu className="w-3.5 h-3.5" /> {currentModelConfig?.name || modelName}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-indigo-500" /> Choose AI Model Version & Key
+                  <Cpu className="w-5 h-5 text-indigo-500" /> Select AI Model Architecture
                 </DialogTitle>
                 <DialogDescription>
-                  Select your preferred AI provider, model version, and enter your key.
+                  Switch between specialized AI provider models and capability tiers.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">AI Provider</label>
-                  <Select value={provider} onValueChange={(val) => handleProviderChange(val as ProviderType)}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Provider" />
-                    </SelectTrigger>
+                  <label className="text-xs font-semibold">Provider Engine</label>
+                  <Select value={provider} onValueChange={(val) => {
+                    const p = val as ProviderType;
+                    setProvider(p);
+                    if (p === "gemini") setModelName("gemini-2.0-flash");
+                    else if (p === "openai") setModelName("gpt-4o-mini");
+                    else if (p === "claude") setModelName("claude-3-5-sonnet-20241022");
+                    else setModelName("llama-3.3-70b-versatile");
+                  }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gemini">Google Gemini</SelectItem>
                       <SelectItem value="openai">OpenAI</SelectItem>
                       <SelectItem value="claude">Anthropic Claude</SelectItem>
-                      <SelectItem value="deepseek">DeepSeek AI</SelectItem>
-                      <SelectItem value="groq">Groq (Ultra Fast Open Source)</SelectItem>
+                      <SelectItem value="groq">Groq / DeepSeek</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Specific Model Version</label>
+                  <label className="text-xs font-semibold">Model Version</label>
                   <Select value={modelName} onValueChange={setModelName}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Model Version" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {MODEL_OPTIONS[provider].map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
+                      {Object.values(MODEL_REGISTRY)
+                        .filter((m) => m.provider === provider)
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name} ({m.speed})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">
-                    API Key for {provider.toUpperCase()}
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder={
-                      provider === "gemini" ? "AIzaSy..." :
-                      provider === "openai" ? "sk-..." :
-                      provider === "claude" ? "sk-ant-..." :
-                      provider === "groq" ? "gsk_..." : "sk-..."
-                    }
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Leave blank to use 100% Free Unlimited AI with full student database context.
-                  </p>
-                </div>
+                {currentModelConfig && (
+                  <div className="p-3 bg-muted/40 border rounded-xl text-xs space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Reasoning Score:</span>
+                      <span className="font-bold text-indigo-500">{currentModelConfig.reasoningScore}/10</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Context Window:</span>
+                      <span className="font-mono">{(currentModelConfig.contextWindow / 1000).toFixed(0)}k tokens</span>
+                    </div>
+                    <div className="flex gap-1 pt-1">
+                      {currentModelConfig.capabilities.map((cap) => (
+                        <Badge key={cap} variant="secondary" className="text-[10px]">
+                          {cap}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
-                  <Check className="w-4 h-4" /> Save Model Selection
+                <Button onClick={() => {
+                  localStorage.setItem("studentos_ai_provider", provider);
+                  localStorage.setItem("studentos_ai_model", modelName);
+                  setKeyDialogOpen(false);
+                  toast.success(`Model switched to ${modelName}`);
+                }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                  <Check className="w-4 h-4" /> Apply Model Selection
                 </Button>
               </div>
             </DialogContent>
@@ -434,7 +415,6 @@ export default function AIMentorPage() {
               <div className="space-y-1 max-w-full overflow-hidden">
                 <div className={cn("rounded-2xl p-4 text-sm border shadow-sm relative", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
                   
-                  {/* ChatGPT-Grade Rich Markdown Renderer */}
                   {isAssistant ? (
                     <FormattedMarkdown content={m.content} messageId={m.id} onCopy={handleCopyText} copiedCodeId={copiedCodeId} />
                   ) : (
@@ -460,7 +440,7 @@ export default function AIMentorPage() {
                     type="button"
                     onClick={() => handleDeleteMessage(m.id)}
                     className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity px-1 flex items-center gap-1"
-                    title="Delete this message"
+                    title="Delete message"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -485,39 +465,55 @@ export default function AIMentorPage() {
         <div ref={scrollRef} />
       </div>
 
-      {/* Input Row */}
-      <form onSubmit={(e) => handleSend(e)} className="p-3 bg-card border rounded-2xl flex items-center gap-2 shadow-lg mt-auto">
-        <input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          accept=".pdf,.txt,.docx"
-          onChange={handleFileUpload}
-          multiple
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-indigo-500 hover:bg-indigo-500/10 rounded-xl"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip className="w-5 h-5" />
-        </Button>
-        <Input
-          placeholder="Ask any question about your tasks, projects, or study concepts..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="flex-1 border-0 focus-visible:ring-0 bg-transparent text-sm"
-        />
-        <Button
-          type="submit"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2"
-          disabled={loading}
-        >
-          <Send className="w-4 h-4 mr-1.5" /> Send
-        </Button>
-      </form>
+      {/* Input Row & Controls */}
+      <div className="space-y-2 mt-auto">
+        {streaming && (
+          <div className="flex justify-center">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 text-destructive border-destructive/30" onClick={handleStopStream}>
+              <StopCircle className="w-3.5 h-3.5" /> Stop Generation
+            </Button>
+          </div>
+        )}
+
+        <form onSubmit={(e) => handleSend(e)} className="p-3 bg-card border rounded-2xl flex items-center gap-2 shadow-lg">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".pdf,.txt,.docx,.js,.ts,.cpp,.py"
+            onChange={(e) => {
+              if (e.target.files) {
+                const fl = Array.from(e.target.files).map(f => ({ name: f.name, size: `${(f.size/1024).toFixed(1)} KB` }));
+                setFiles(prev => [...prev, ...fl]);
+                toast.success("File attached!");
+              }
+            }}
+            multiple
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-indigo-500 hover:bg-indigo-500/10 rounded-xl"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="w-5 h-5" />
+          </Button>
+          <Input
+            placeholder="Ask any question about your tasks, projects, or study concepts..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="flex-1 border-0 focus-visible:ring-0 bg-transparent text-sm"
+          />
+          <Button
+            type="submit"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2"
+            disabled={loading || streaming}
+          >
+            <Send className="w-4 h-4 mr-1.5" /> Send
+          </Button>
+        </form>
+      </div>
 
       {files.length > 0 && (
         <div className="flex gap-2 p-2 flex-wrap">
@@ -544,7 +540,6 @@ function FormattedMarkdown({ content, messageId, onCopy, copiedCodeId }: {
 }) {
   if (!content) return null;
 
-  // Split by code blocks first
   const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
   const parts: { type: "code" | "markdown"; content: string; lang?: string }[] = [];
 
@@ -596,7 +591,6 @@ function FormattedMarkdown({ content, messageId, onCopy, copiedCodeId }: {
         lines.forEach((line, lIdx) => {
           const trimmed = line.trim();
 
-          // Table detection
           if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
             if (!inTable) {
               inTable = true;

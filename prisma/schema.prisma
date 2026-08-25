@@ -603,3 +603,69 @@ model StudyLog {
   @@index([userId, date])
   @@map("study_logs")
 }
+
+model AIConversation {
+  id               String      @id @default(cuid())
+  userId           String
+  title            String
+  selectedProvider String      @default("gemini")
+  selectedModel    String      @default("gemini-2.0-flash")
+  mode             String      @default("general")
+  messages         AIMessage[]
+  usages           AIUsage[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // "user" | "assistant" | "system"
+  content        String         @db.Text
+  attachments    Json?
+  provider       String?
+  model          String?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+model AIUsage {
+  id             String          @id @default(cuid())
+  userId         String
+  conversationId String?
+  conversation   AIConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  provider       String
+  model          String
+  mode           String          @default("general")
+  inputTokens    Int?
+  outputTokens   Int?
+  latencyMs      Int
+  status         String          @default("success") // "success" | "failed" | "rate_limited"
+  createdAt      DateTime        @default(now())
+
+  @@index([userId])
+  @@map("ai_usages")
+}
+
+model AIProviderConfig {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  geminiKey       String?
+  openaiKey       String?
+  anthropicKey    String?
+  groqKey         String?
+  defaultProvider String   @default("gemini")
+  defaultModel    String   @default("gemini-2.0-flash")
+  autoRouting     Boolean  @default(true)
+  streaming       Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+
+  @@map("ai_provider_configs")
+}
+
