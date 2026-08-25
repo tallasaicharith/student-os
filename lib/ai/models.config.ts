@@ -1,21 +1,33 @@
 import { ModelConfig, ProviderName } from "./types";
 
 export const MODEL_REGISTRY: Record<string, ModelConfig> = {
-  // ── StudentOS Built-in AI Model (Free / No Key Required) ─────────────────
-  "studentos-ai": {
-    id: "studentos-ai",
-    name: "⚡ StudentOS AI (Built-in / Free)",
-    provider: "gemini",
+  // ── OpenAI ChatGPT Models (Primary Default Engine) ──────────────────────────
+  "gpt-4o-mini": {
+    id: "gpt-4o-mini",
+    name: "GPT-4o Mini (ChatGPT Fast & Smart)",
+    provider: "openai",
     capabilities: ["FAST", "BALANCED"],
     contextWindow: 128000,
     speed: "Ultra Fast",
     quality: "High",
     reasoningScore: 9,
-    supportsVision: false,
+    supportsVision: true,
+    supportsStreaming: true,
+  },
+  "gpt-4o": {
+    id: "gpt-4o",
+    name: "GPT-4o (Omni Intelligence)",
+    provider: "openai",
+    capabilities: ["POWERFUL", "REASONING", "VISION"],
+    contextWindow: 128000,
+    speed: "Fast",
+    quality: "State-of-the-Art",
+    reasoningScore: 10,
+    supportsVision: true,
     supportsStreaming: true,
   },
 
-  // ── Google Gemini Models (Supported by Google AI Studio keys) ──────────────
+  // ── Google Gemini Models ───────────────────────────────────────────────────
   "gemini-2.0-flash": {
     id: "gemini-2.0-flash",
     name: "Gemini 2.0 Flash (Next-Gen)",
@@ -37,44 +49,6 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
     speed: "Moderate",
     quality: "State-of-the-Art",
     reasoningScore: 10,
-    supportsVision: true,
-    supportsStreaming: true,
-  },
-  "gemini-1.5-flash": {
-    id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash (Fast)",
-    provider: "gemini",
-    capabilities: ["FAST", "BALANCED"],
-    contextWindow: 1048576,
-    speed: "Fast",
-    quality: "High",
-    reasoningScore: 8,
-    supportsVision: true,
-    supportsStreaming: true,
-  },
-
-  // ── OpenAI Models ──────────────────────────────────────────────────────────
-  "gpt-4o": {
-    id: "gpt-4o",
-    name: "GPT-4o (Omni Intelligence)",
-    provider: "openai",
-    capabilities: ["POWERFUL", "REASONING", "VISION"],
-    contextWindow: 128000,
-    speed: "Fast",
-    quality: "State-of-the-Art",
-    reasoningScore: 10,
-    supportsVision: true,
-    supportsStreaming: true,
-  },
-  "gpt-4o-mini": {
-    id: "gpt-4o-mini",
-    name: "GPT-4o Mini (Fast & Efficient)",
-    provider: "openai",
-    capabilities: ["FAST", "BALANCED"],
-    contextWindow: 128000,
-    speed: "Ultra Fast",
-    quality: "High",
-    reasoningScore: 8,
     supportsVision: true,
     supportsStreaming: true,
   },
@@ -108,8 +82,8 @@ export const MODEL_REGISTRY: Record<string, ModelConfig> = {
   },
 };
 
-export const DEFAULT_PROVIDER: ProviderName = (process.env.DEFAULT_AI_PROVIDER as ProviderName) || "gemini";
-export const DEFAULT_MODEL: string = process.env.DEFAULT_AI_MODEL || "gemini-2.0-flash";
+export const DEFAULT_PROVIDER: ProviderName = (process.env.DEFAULT_AI_PROVIDER as ProviderName) || "openai";
+export const DEFAULT_MODEL: string = process.env.DEFAULT_AI_MODEL || "gpt-4o-mini";
 
 export function getModelConfig(modelId: string): ModelConfig {
   return (
@@ -121,8 +95,8 @@ export function getModelConfig(modelId: string): ModelConfig {
       contextWindow: 128000,
       speed: "Fast",
       quality: "High",
-      reasoningScore: 8,
-      supportsVision: false,
+      reasoningScore: 9,
+      supportsVision: true,
       supportsStreaming: true,
     }
   );

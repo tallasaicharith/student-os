@@ -4,9 +4,8 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, Key,
-  BookOpen, Code, Lightbulb, Check, Copy, Download, HelpCircle,
-  Briefcase, Calendar, Terminal, FileCheck, RefreshCw, Cpu, StopCircle, RotateCcw,
-  Zap, Award, Plus, Search, Edit3, MessageSquare, PanelLeft, ThumbsUp, ThumbsDown
+  Lightbulb, Code, Calendar, FileCheck, Briefcase, HelpCircle,
+  Cpu, StopCircle, RotateCcw, Plus, Search, Edit3, MessageSquare, PanelLeft, ThumbsUp, ThumbsDown, Check, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +35,7 @@ interface ConversationItem {
   selectedModel?: string;
 }
 
-type ProviderType = "gemini" | "openai" | "claude" | "groq" | "deepseek";
+type ProviderType = "openai" | "gemini" | "claude" | "groq";
 
 const AI_MODES = [
   { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What pending tasks should I focus on today based on my StudentOS goals?" },
@@ -64,8 +63,8 @@ export default function AIMentorPage() {
   const [editingContent, setEditingContent] = useState("");
   const [dragOver, setDragOver] = useState(false);
   
-  const [provider, setProvider] = useState<ProviderType>("gemini");
-  const [modelName, setModelName] = useState("gemini-2.0-flash");
+  const [provider, setProvider] = useState<ProviderType>("openai");
+  const [modelName, setModelName] = useState("gpt-4o-mini");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
@@ -81,18 +80,32 @@ export default function AIMentorPage() {
   useEffect(() => {
     fetchConversations();
     
-    // Priority 1: Check localStorage
-    const localKey = localStorage.getItem("studentos_gemini_key");
-    if (localKey && localKey.trim()) {
-      setSavedApiKey(localKey.trim());
-      setTempApiKeyInput(localKey.trim());
+    // Priority 1: Check localStorage for OpenAI or Gemini key
+    const localOpenAIKey = localStorage.getItem("studentos_openai_key");
+    const localGeminiKey = localStorage.getItem("studentos_gemini_key");
+
+    if (localOpenAIKey && localOpenAIKey.trim()) {
+      setSavedApiKey(localOpenAIKey.trim());
+      setTempApiKeyInput(localOpenAIKey.trim());
+      setProvider("openai");
+      setModelName("gpt-4o-mini");
+    } else if (localGeminiKey && localGeminiKey.trim()) {
+      setSavedApiKey(localGeminiKey.trim());
+      setTempApiKeyInput(localGeminiKey.trim());
+      setProvider("gemini");
+      setModelName("gemini-2.0-flash");
     }
 
     // Priority 2: Fetch Server Settings
     fetch("/api/ai/settings")
       .then((r) => r.json())
       .then((data) => {
-        if (data.rawKeys && data.rawKeys.gemini) {
+        if (data.rawKeys && data.rawKeys.openai) {
+          setSavedApiKey(data.rawKeys.openai);
+          setTempApiKeyInput(data.rawKeys.openai);
+          localStorage.setItem("studentos_openai_key", data.rawKeys.openai);
+          setProvider("openai");
+        } else if (data.rawKeys && data.rawKeys.gemini) {
           setSavedApiKey(data.rawKeys.gemini);
           setTempApiKeyInput(data.rawKeys.gemini);
           localStorage.setItem("studentos_gemini_key", data.rawKeys.gemini);
@@ -110,7 +123,6 @@ export default function AIMentorPage() {
   }, [messages, loading, streaming]);
 
   const fetchConversations = async () => {
-    // Load local conversations backup
     const savedLocal = localStorage.getItem("studentos_local_conversations");
     if (savedLocal) {
       try { setConversations(JSON.parse(savedLocal)); } catch (_e) {}
@@ -135,15 +147,23 @@ export default function AIMentorPage() {
     }
     const cleanKey = tempApiKeyInput.trim();
     setSavedApiKey(cleanKey);
-    localStorage.setItem("studentos_gemini_key", cleanKey);
+
+    const isExplicitOpenAI = cleanKey.startsWith("sk-");
+    if (isExplicitOpenAI) {
+      localStorage.setItem("studentos_openai_key", cleanKey);
+      setProvider("openai");
+      setModelName("gpt-4o-mini");
+    } else {
+      localStorage.setItem("studentos_gemini_key", cleanKey);
+    }
 
     try {
       await fetch("/api/ai/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ geminiKey: cleanKey }),
+        body: JSON.stringify(isExplicitOpenAI ? { openaiKey: cleanKey, defaultProvider: "openai", defaultModel: "gpt-4o-mini" } : { geminiKey: cleanKey }),
       });
-      toast.success("API Key saved permanently! 🔒");
+      toast.success(isExplicitOpenAI ? "OpenAI Key saved permanently! 🟢" : "Google Gemini Key saved! 🔒");
       setApiKeyModalOpen(false);
     } catch (_e) {
       toast.success("API Key saved locally!");
@@ -169,7 +189,7 @@ export default function AIMentorPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS Multi-Model AI Copilot**. I retain full multi-turn conversational memory, support streaming answers, and understand file uploads. How can I assist you today?",
+        content: "Hello! I am your **StudentOS OpenAI / Multi-Model AI Copilot**. I retain full multi-turn conversational memory, support streaming answers, and understand file uploads. How can I assist you today?",
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -250,7 +270,7 @@ export default function AIMentorPage() {
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim() && files.length === 0) return;
 
-    const keyToUse = savedApiKey || localStorage.getItem("studentos_gemini_key") || "";
+    const keyToUse = savedApiKey || localStorage.getItem("studentos_openai_key") || localStorage.getItem("studentos_gemini_key") || "";
 
     const userMessage: Message = {
       id: Math.random().toString(),
@@ -383,10 +403,10 @@ export default function AIMentorPage() {
     >
       {/* Drag & Drop Overlay */}
       {dragOver && (
-        <div className="absolute inset-0 bg-indigo-500/10 border-2 border-dashed border-indigo-500 z-50 flex items-center justify-center backdrop-blur-sm pointer-events-none">
+        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary z-50 flex items-center justify-center backdrop-blur-sm pointer-events-none">
           <div className="text-center">
-            <Paperclip className="w-12 h-12 text-indigo-500 mx-auto animate-bounce" />
-            <p className="font-bold text-lg text-indigo-500 mt-2">Drop files to attach to chat</p>
+            <Paperclip className="w-12 h-12 text-primary mx-auto animate-bounce" />
+            <p className="font-bold text-lg text-primary mt-2">Drop files to attach to chat</p>
           </div>
         </div>
       )}
@@ -400,7 +420,7 @@ export default function AIMentorPage() {
             </Button>
           ) : (
             <Button variant="ghost" size="icon" onClick={handleNewChat} title="New Chat">
-              <Plus className="w-4 h-4 text-indigo-500" />
+              <Plus className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -426,7 +446,7 @@ export default function AIMentorPage() {
               onClick={() => handleSelectConversation(c.id)}
               className={cn(
                 "p-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors group",
-                activeConvId === c.id ? "bg-indigo-500/10 text-indigo-500 font-semibold border border-indigo-500/20" : "hover:bg-muted text-foreground/80"
+                activeConvId === c.id ? "bg-muted text-foreground font-semibold border" : "hover:bg-muted text-foreground/80"
               )}
             >
               <div className="flex items-center gap-2 overflow-hidden">
@@ -456,7 +476,7 @@ export default function AIMentorPage() {
               <PanelLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-sm font-bold flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <Sparkles className="w-4 h-4" />
               StudentOS AI Mentor Copilot
             </h1>
           </div>
@@ -465,23 +485,23 @@ export default function AIMentorPage() {
             {/* Modal for setting API key right in Chat window */}
             <Dialog open={apiKeyModalOpen} onOpenChange={setApiKeyModalOpen}>
               <DialogTrigger asChild>
-                <Button variant={savedApiKey ? "outline" : "default"} size="sm" className={cn("h-7 text-xs gap-1", !savedApiKey && "bg-amber-500 hover:bg-amber-600 text-white")}>
+                <Button variant={savedApiKey ? "outline" : "default"} size="sm" className="h-7 text-xs gap-1">
                   <Key className="w-3.5 h-3.5" /> {savedApiKey ? "🔑 Key Saved" : "Set API Key"}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-sm font-bold">
-                    <Key className="w-4 h-4 text-indigo-500" /> Set API Key
+                    <Key className="w-4 h-4" /> Set OpenAI / Gemini API Key
                   </DialogTitle>
                   <DialogDescription className="text-xs">
-                    Paste your Google AI Studio key (`AIza...`). It will be saved permanently in your database & browser so you never have to re-enter it!
+                    Paste your OpenAI API key (`sk-proj-...` / `sk-...`) or Google Gemini key (`AIza...`). Saved permanently in database & browser!
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-2">
                   <Input
                     type="password"
-                    placeholder="Paste Google AI Studio Key (starts with AIza...)"
+                    placeholder="Paste OpenAI Key (sk-...) or Gemini Key (AIza...)"
                     value={tempApiKeyInput}
                     onChange={(e) => setTempApiKeyInput(e.target.value)}
                   />
@@ -495,13 +515,13 @@ export default function AIMentorPage() {
             <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                  <Cpu className="w-3.5 h-3.5 text-indigo-500" /> {currentModelConfig?.name || modelName}
+                  <Cpu className="w-3.5 h-3.5" /> {currentModelConfig?.name || modelName}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Switch Model Architecture</DialogTitle>
-                  <DialogDescription>Switch models seamlessly without breaking conversation memory.</DialogDescription>
+                  <DialogTitle>Switch Model Engine</DialogTitle>
+                  <DialogDescription>Select OpenAI ChatGPT, Gemini, or Claude provider.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-3 py-2">
@@ -510,15 +530,15 @@ export default function AIMentorPage() {
                     <Select value={provider} onValueChange={(val) => {
                       const p = val as ProviderType;
                       setProvider(p);
-                      if (p === "gemini") setModelName("gemini-2.0-flash");
-                      else if (p === "openai") setModelName("gpt-4o-mini");
+                      if (p === "openai") setModelName("gpt-4o-mini");
+                      else if (p === "gemini") setModelName("gemini-2.0-flash");
                       else if (p === "claude") setModelName("claude-3-5-sonnet-20241022");
                       else setModelName("llama-3.3-70b-versatile");
                     }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="openai">OpenAI (ChatGPT)</SelectItem>
                         <SelectItem value="gemini">Google Gemini</SelectItem>
-                        <SelectItem value="openai">OpenAI</SelectItem>
                         <SelectItem value="claude">Anthropic Claude</SelectItem>
                         <SelectItem value="groq">Groq / DeepSeek</SelectItem>
                       </SelectContent>
@@ -557,7 +577,7 @@ export default function AIMentorPage() {
             }}>
               <Trash2 className="w-3.5 h-3.5 text-destructive" /> Clear Chat
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-indigo-500" onClick={handleNewChat}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={handleNewChat}>
               <Plus className="w-3.5 h-3.5" /> New
             </Button>
           </div>
@@ -587,7 +607,7 @@ export default function AIMentorPage() {
             const isAssistant = m.role === "assistant";
             return (
               <div key={m.id} className={cn("flex gap-3 max-w-[90%] group relative", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
-                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 mt-0.5", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
+                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 mt-0.5", isAssistant ? "bg-muted text-foreground" : "bg-primary text-primary-foreground")}>
                   {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                 </div>
 
@@ -600,7 +620,7 @@ export default function AIMentorPage() {
                         <Textarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} className="text-xs bg-background text-foreground" />
                         <div className="flex justify-end gap-2">
                           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingMsgId(null)}>Cancel</Button>
-                          <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => handleSaveEditedMessage(m.id)}>Save & Resend</Button>
+                          <Button size="sm" className="h-7 text-xs bg-primary text-primary-foreground" onClick={() => handleSaveEditedMessage(m.id)}>Save & Resend</Button>
                         </div>
                       </div>
                     ) : isAssistant ? (
@@ -635,7 +655,7 @@ export default function AIMentorPage() {
 
                       {isAssistant && (
                         <>
-                          <button type="button" onClick={handleRegenerate} className="hover:text-indigo-500 transition-colors flex items-center gap-1" title="Regenerate answer">
+                          <button type="button" onClick={handleRegenerate} className="hover:text-primary transition-colors flex items-center gap-1" title="Regenerate answer">
                             <RotateCcw className="w-3 h-3" /> Regenerate
                           </button>
                           <button type="button" onClick={() => toast.success("Feedback recorded 👍")} className="hover:text-emerald-500 transition-colors">
@@ -659,13 +679,13 @@ export default function AIMentorPage() {
 
           {loading && (
             <div className="flex gap-3 max-w-[80%]">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center border bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center border bg-muted text-foreground">
                 <Bot className="w-4 h-4 animate-spin" />
               </div>
               <div className="bg-card text-card-foreground rounded-2xl p-4 text-sm border shadow-sm flex items-center gap-2">
-                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                <span className="w-2 h-2 bg-primary rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-2 h-2 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
               </div>
             </div>
           )}
@@ -687,7 +707,7 @@ export default function AIMentorPage() {
             className="border rounded-2xl p-2 bg-background shadow-inner flex flex-col gap-2"
           >
             <Textarea
-              placeholder="Message StudentOS AI... (Enter to send, Shift+Enter for new line)"
+              placeholder="Message StudentOS OpenAI Assistant... (Enter to send, Shift+Enter for new line)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -713,7 +733,7 @@ export default function AIMentorPage() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-indigo-500 text-xs gap-1 h-7"
+                  className="text-muted-foreground hover:text-foreground text-xs gap-1 h-7"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Paperclip className="w-3.5 h-3.5" /> Attach
@@ -784,7 +804,7 @@ function FormattedMarkdown({ content, messageId, onCopy, copiedCodeId }: {
           return (
             <div key={pIdx} className="my-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-100 shadow-md">
               <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
-                <span className="font-semibold text-indigo-400">{part.lang}</span>
+                <span className="font-semibold text-slate-200">{part.lang}</span>
                 <button
                   type="button"
                   onClick={() => onCopy(part.content, blockId)}
