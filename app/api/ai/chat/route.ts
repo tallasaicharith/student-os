@@ -93,11 +93,11 @@ export async function POST(req: NextRequest) {
     const lastUserMsg = reqMessages.length > 0 ? reqMessages[reqMessages.length - 1]?.content : "";
     let friendlyResponse = "";
 
-    if (errorMsg.includes("401") || errorMsg.includes("AQ.") || errorMsg.includes("UNAUTHENTICATED")) {
+    if (errorMsg.includes("401") || errorMsg.includes("UNAUTHENTICATED")) {
       friendlyResponse = [
         "🔑 **Google AI Studio Key Required**",
         "",
-        "The token starting with `AQ...` is a session token. Google AI Studio API requires an API key starting with `AIzaSy...` from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).",
+        "Please provide a valid API key from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).",
         "",
         "---",
         "Hello! I am your **StudentOS Academic Copilot**. Regarding your prompt:",
