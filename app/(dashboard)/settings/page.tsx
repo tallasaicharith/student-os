@@ -63,7 +63,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/ai/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, apiKey: keyOverride }),
+        body: JSON.stringify({ provider, apiKey: keyOverride || "" }),
       });
       const data = await res.json();
       if (data.success) {
@@ -75,9 +75,9 @@ export default function SettingsPage() {
       } else {
         setTestResults((prev) => ({
           ...prev,
-          [provider]: { testing: false, status: "failed", message: "✕ Connection failed" },
+          [provider]: { testing: false, status: "failed", message: data.message || "✕ Connection failed" },
         }));
-        toast.error(`Connection to ${provider.toUpperCase()} failed`);
+        toast.error(`Connection to ${provider.toUpperCase()} failed: ${data.message || ""}`);
       }
     } catch (_e) {
       setTestResults((prev) => ({
@@ -108,11 +108,17 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.maskedKeys) setMaskedKeys(data.maskedKeys);
 
+      const savedGeminiKey = geminiKeyInput.trim();
       setGeminiKeyInput("");
       setOpenaiKeyInput("");
       setClaudeKeyInput("");
       setGroqKeyInput("");
-      toast.success("AI Settings & Provider Keys updated securely! 🔒");
+      toast.success("AI Settings & Provider Keys saved! 🔒");
+
+      // Auto-test Google Gemini connection
+      if (savedGeminiKey || maskedKeys.gemini) {
+        handleTestConnection("gemini", savedGeminiKey);
+      }
     } catch (_e) {
       toast.error("Failed to save AI settings");
     } finally {
@@ -175,7 +181,7 @@ export default function SettingsPage() {
               <Cpu className="w-4 h-4" />
               AI Multi-Model Provider Settings
             </CardTitle>
-            <CardDescription>Configure provider keys securely. API keys are 100% server-side and never exposed to JavaScript.</CardDescription>
+            <CardDescription>Configure provider keys securely. Paste your Google AI Studio key (`AIza...`) below and click Save All Settings.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             
@@ -217,14 +223,14 @@ export default function SettingsPage() {
               <div className="p-3.5 border rounded-xl bg-card space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold flex items-center gap-1.5">
-                    🌐 Google Gemini API Key
+                    🌐 Google Gemini API Key (Google AI Studio)
                   </span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-mono">
-                      {maskedKeys.gemini || "••••••••"}
+                      {maskedKeys.gemini || "Not Configured"}
                     </Badge>
                     <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => handleTestConnection("gemini", geminiKeyInput)}>
-                      Test Connection
+                      {testResults.gemini?.testing ? "Testing..." : "Test Connection"}
                     </Button>
                     {testResults.gemini?.status === "connected" && <Badge className="bg-emerald-500 text-white text-[10px]">✓ Connected</Badge>}
                     {testResults.gemini?.status === "failed" && <Badge variant="destructive" className="text-[10px]">✕ Connection Failed</Badge>}
@@ -232,7 +238,7 @@ export default function SettingsPage() {
                 </div>
                 <Input
                   type="password"
-                  placeholder="Paste new GEMINI_API_KEY (starts with AIza...)"
+                  placeholder="Paste Google AI Studio Key (starts with AIza...)"
                   value={geminiKeyInput}
                   onChange={(e) => setGeminiKeyInput(e.target.value)}
                 />
@@ -246,10 +252,10 @@ export default function SettingsPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-mono">
-                      {maskedKeys.openai || "••••••••"}
+                      {maskedKeys.openai || "Not Configured"}
                     </Badge>
                     <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => handleTestConnection("openai", openaiKeyInput)}>
-                      Test Connection
+                      {testResults.openai?.testing ? "Testing..." : "Test Connection"}
                     </Button>
                     {testResults.openai?.status === "connected" && <Badge className="bg-emerald-500 text-white text-[10px]">✓ Connected</Badge>}
                     {testResults.openai?.status === "failed" && <Badge variant="destructive" className="text-[10px]">✕ Connection Failed</Badge>}
@@ -257,7 +263,7 @@ export default function SettingsPage() {
                 </div>
                 <Input
                   type="password"
-                  placeholder="Paste new OPENAI_API_KEY (starts with sk-...)"
+                  placeholder="Paste OpenAI Key (starts with sk-...)"
                   value={openaiKeyInput}
                   onChange={(e) => setOpenaiKeyInput(e.target.value)}
                 />
@@ -271,10 +277,10 @@ export default function SettingsPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] font-mono">
-                      {maskedKeys.claude || "••••••••"}
+                      {maskedKeys.claude || "Not Configured"}
                     </Badge>
                     <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => handleTestConnection("claude", claudeKeyInput)}>
-                      Test Connection
+                      {testResults.claude?.testing ? "Testing..." : "Test Connection"}
                     </Button>
                     {testResults.claude?.status === "connected" && <Badge className="bg-emerald-500 text-white text-[10px]">✓ Connected</Badge>}
                     {testResults.claude?.status === "failed" && <Badge variant="destructive" className="text-[10px]">✕ Connection Failed</Badge>}
@@ -282,7 +288,7 @@ export default function SettingsPage() {
                 </div>
                 <Input
                   type="password"
-                  placeholder="Paste new ANTHROPIC_API_KEY (starts with sk-ant-...)"
+                  placeholder="Paste Anthropic Key (starts with sk-ant-...)"
                   value={claudeKeyInput}
                   onChange={(e) => setClaudeKeyInput(e.target.value)}
                 />

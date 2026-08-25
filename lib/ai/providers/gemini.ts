@@ -5,11 +5,14 @@ export class GeminiProvider implements AIProvider {
   name = "gemini" as const;
 
   private getApiKey(reqKey?: string): string {
-    const key = reqKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!key || key.trim().length === 0) {
-      throw new Error("Google Gemini API key is missing. Add GEMINI_API_KEY in .env or Settings.");
+    if (reqKey && reqKey.trim().length > 0) {
+      return reqKey.trim();
     }
-    return key.trim();
+    const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!envKey || envKey.trim().length === 0) {
+      throw new Error("Google Gemini API key is missing. Paste your Google AI Studio key (starts with AIza...) in Settings.");
+    }
+    return envKey.trim();
   }
 
   async stream(req: StreamRequest): Promise<ReadableStream<Uint8Array>> {
@@ -131,7 +134,7 @@ export class GeminiProvider implements AIProvider {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: "ping" }] }],
+            contents: [{ parts: [{ text: "ping" }] }],
           }),
         }
       );
@@ -139,7 +142,25 @@ export class GeminiProvider implements AIProvider {
       if (res.ok) {
         return { success: true, message: "Connected to Google Gemini API" };
       }
-      return { success: false, message: `Gemini API returned status ${res.status}` };
+
+      // Try fallback model if 1.5-flash endpoint returned 404
+      const res2 = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "ping" }] }],
+          }),
+        }
+      );
+
+      if (res2.ok) {
+        return { success: true, message: "Connected to Google Gemini 2.0 API" };
+      }
+
+      const errText = await res.text();
+      return { success: false, message: `Gemini API returned status ${res.status}: ${errText}` };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : "Connection failed" };
     }
