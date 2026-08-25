@@ -63,8 +63,8 @@ export default function AIMentorPage() {
   const [editingContent, setEditingContent] = useState("");
   const [dragOver, setDragOver] = useState(false);
   
-  const [provider, setProvider] = useState<ProviderType>("openai");
-  const [modelName, setModelName] = useState("gpt-4o-mini");
+  const [provider, setProvider] = useState<ProviderType>("gemini");
+  const [modelName, setModelName] = useState("gemini-2.5-flash");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);

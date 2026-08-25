@@ -43,7 +43,7 @@ export function FloatingAIChatbot() {
     setLoading(true);
 
     const botMessageId = Math.random().toString();
-    const savedKey = localStorage.getItem("studentos_openai_key") || localStorage.getItem("studentos_gemini_key") || "";
+    const savedKey = localStorage.getItem("studentos_gemini_key") || localStorage.getItem("studentos_openai_key") || "";
 
     try {
       const res = await fetch("/api/ai/chat", {
@@ -52,8 +52,8 @@ export function FloatingAIChatbot() {
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
           apiKey: savedKey,
-          provider: "openai",
-          model: "gpt-4o-mini",
+          provider: "gemini",
+          model: "gemini-2.5-flash",
           mode: "general",
         }),
       });
@@ -132,7 +132,7 @@ export function FloatingAIChatbot() {
                   <h3 className="text-xs font-bold flex items-center gap-1">
                     StudentOS AI Copilot
                   </h3>
-                  <span className="text-[9px] text-emerald-500 font-semibold block">● Online (OpenAI ChatGPT Powered)</span>
+                  <span className="text-[9px] text-emerald-500 font-semibold block">● Online (Google AI Studio Gemini Powered)</span>
                 </div>
               </div>
               <Button

@@ -5,19 +5,20 @@ export class GeminiProvider implements AIProvider {
   name = "gemini" as const;
 
   private getApiKey(reqKey?: string): string {
-    if (reqKey && reqKey.trim().length > 0) {
-      return reqKey.trim();
-    }
     const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!envKey || envKey.trim().length === 0) {
-      throw new Error("Google Gemini API key is missing. Paste your Google AI Studio key (starts with AIza...) in Settings.");
+    let key = reqKey;
+    if (!key || key.trim().length === 0) {
+      key = envKey;
     }
-    return envKey.trim();
+    if (!key || key.trim().length === 0) {
+      throw new Error("Google Gemini API key is missing. Paste your Google AI Studio key in Settings.");
+    }
+    return key.trim();
   }
 
   async stream(req: StreamRequest): Promise<ReadableStream<Uint8Array>> {
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model.includes("gemini") ? req.model : "gemini-2.0-flash";
+    const model = req.model && req.model.includes("gemini") ? req.model : "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -40,8 +41,8 @@ export class GeminiProvider implements AIProvider {
       });
 
       if (!res.ok) {
-        // Retry with gemini-2.0-flash fallback if model was 404
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
+        // Retry with gemini-2.5-flash fallback
+        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -127,7 +128,7 @@ export class GeminiProvider implements AIProvider {
   async generate(req: StreamRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model.includes("gemini") ? req.model : "gemini-2.0-flash";
+    const model = req.model && req.model.includes("gemini") ? req.model : "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -170,8 +171,6 @@ export class GeminiProvider implements AIProvider {
   async testConnection(apiKey?: string): Promise<{ success: boolean; message: string }> {
     try {
       const key = this.getApiKey(apiKey);
-
-      // Official ListModels verification endpoint (100% reliable for all Google AI Studio keys)
       const listRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
       );
