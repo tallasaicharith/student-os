@@ -32,10 +32,17 @@ export class GeminiProvider implements AIProvider {
     return new Error(`Gemini API error (${status}): ${errText}`);
   }
 
+  private resolveModelName(model?: string): string {
+    if (!model || model === "gpt-4o-mini" || model === "gemini-2.0-flash" || model === "gemini-1.5-flash") {
+      return "gemini-3.6-flash";
+    }
+    return model;
+  }
+
   async stream(req: StreamRequest): Promise<ReadableStream<Uint8Array>> {
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model && req.model !== "gpt-4o-mini" ? req.model : "gemini-2.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    let model = this.resolveModelName(req.model);
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
@@ -50,7 +57,7 @@ export class GeminiProvider implements AIProvider {
       };
     }
 
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,6 +65,20 @@ export class GeminiProvider implements AIProvider {
       },
       body: JSON.stringify(payload),
     });
+
+    // Fallback model retry if model is unavailable
+    if (!res.ok && res.status === 404 && model !== "gemini-2.5-flash") {
+      model = "gemini-2.5-flash";
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!res.ok) {
       const errText = await res.text();
@@ -102,8 +123,8 @@ export class GeminiProvider implements AIProvider {
   async generate(req: StreamRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model && req.model !== "gpt-4o-mini" ? req.model : "gemini-2.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    let model = this.resolveModelName(req.model);
+    let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
@@ -118,7 +139,7 @@ export class GeminiProvider implements AIProvider {
       };
     }
 
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -126,6 +147,19 @@ export class GeminiProvider implements AIProvider {
       },
       body: JSON.stringify(payload),
     });
+
+    if (!res.ok && res.status === 404 && model !== "gemini-2.5-flash") {
+      model = "gemini-2.5-flash";
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!res.ok) {
       const errText = await res.text();

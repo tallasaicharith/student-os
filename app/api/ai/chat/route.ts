@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const stream = await LangChainExecutionChain.runChain({
       messages,
       provider: "gemini" as ProviderName,
-      model: "gemini-2.5-flash",
+      model: "gemini-3.6-flash",
       mode,
       apiKey: resolvedApiKey,
       userId,
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
               userId,
               title,
               selectedProvider: "gemini",
-              selectedModel: "gemini-2.5-flash",
+              selectedModel: "gemini-3.6-flash",
               mode,
             },
           });
