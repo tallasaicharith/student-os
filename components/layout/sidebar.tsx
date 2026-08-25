@@ -52,7 +52,7 @@ export function Sidebar() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.2 }}
-                className="font-bold text-lg bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent whitespace-nowrap"
+                className="font-bold text-lg text-foreground tracking-tight whitespace-nowrap"
               >
                 StudentOS
               </motion.span>
@@ -157,7 +157,7 @@ export function MobileSidebar() {
             <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚡</span>
-                <span className="font-bold text-lg bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                <span className="font-bold text-lg text-foreground tracking-tight">
                   StudentOS
                 </span>
               </div>
