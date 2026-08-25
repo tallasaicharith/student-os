@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateUser } from "@/lib/db";
+import { db, getOrCreateUser } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    await getOrCreateUser();
+    const userId = await getOrCreateUser();
     const body = await req.json();
     const { messages, apiKey, provider = "gemini", mode = "general" } = body;
 
@@ -14,21 +14,64 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = messages[messages.length - 1]?.content || "";
     const effectiveApiKey = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.OPENAI_API_KEY;
 
-    // Mode-specific System Prompts
-    let systemInstruction = "You are StudentOS AI Mentor, an elite academic and career advisor for university students. Be clear, encouraging, structured, and use Markdown with bullet points, code blocks, and math expressions where applicable.";
+    // Retrieve Live Student Data Context from Supabase PostgreSQL Database (RAG)
+    let studentDataSummary = "";
+    try {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        include: {
+          tasks: { take: 10, orderBy: { createdAt: "desc" } },
+          habits: { take: 10 },
+          projects: { take: 6, orderBy: { updatedAt: "desc" } },
+          books: { take: 5 },
+          applications: { take: 5 },
+        },
+      });
+
+      if (user) {
+        studentDataSummary = `
+## LIVE STUDENT DATA CONTEXT (Real-Time StudentOS Profile):
+- **Student Profile**: ${user.name || "Student"} (${user.email})
+- **Active Tasks**: ${user.tasks.length > 0 ? user.tasks.map(t => `[${t.done ? "COMPLETED" : "PENDING"}] ${t.title} (${t.priority} Priority, ${t.category})`).join("; ") : "No tasks added yet."}
+- **Habits & Goals**: ${user.habits.length > 0 ? user.habits.map(h => `${h.emoji} ${h.name}`).join("; ") : "No habits tracked."}
+- **Projects Portfolio**: ${user.projects.length > 0 ? user.projects.map(p => `${p.name} [${p.progress}% Complete, Status: ${p.status}] Tech Stack: ${p.stack}. Next Milestone: ${p.milestone || "None"}`).join("; ") : "No projects added."}
+- **Reading List**: ${user.books.length > 0 ? user.books.map(b => `"${b.title}" by ${b.author || "Unknown"} (${b.readPages}/${b.totalPages} pages read)`).join("; ") : "No books added."}
+- **Internship Applications**: ${user.applications.length > 0 ? user.applications.map(a => `${a.role} [Stage: ${a.status}]`).join("; ") : "No job applications tracked."}
+`;
+      }
+    } catch (_e) {
+      // Fallback context if DB query encounters error
+    }
+
+    // Base System Instructions with persona adoption
+    let providerPersona = "StudentOS AI Academic & Career Copilot";
+    if (provider === "gemini") providerPersona = "Google Gemini 1.5 AI";
+    if (provider === "openai") providerPersona = "OpenAI GPT-4o AI";
+    if (provider === "claude") providerPersona = "Anthropic Claude 3.5 Sonnet AI";
+    if (provider === "deepseek") providerPersona = "DeepSeek R1 AI";
+    if (provider === "groq") providerPersona = "Llama 3.3 70B (via Groq) AI";
+
+    let systemInstruction = `You are ${providerPersona}, serving as an elite academic, coding, and career mentor integrated into StudentOS.
+You have FULL ACCESS to the student's live data context below. When the student asks about their tasks, projects, habits, study progress, or career plans, USE THEIR ACTUAL DATA to give specific, personalized advice.
+
+${studentDataSummary}
+
+Formatting Instructions:
+- Format cleanly with Markdown headings, bullet points, syntax-highlighted code blocks, and math expressions where relevant.
+- Be direct, encouraging, precise, and highly actionable.`;
 
     if (mode === "explain") {
-      systemInstruction = "You are StudentOS Concept Explainer. Explain complex academic and technical topics step-by-step. Provide: 1. Simple High-level Analogy, 2. Formal Technical Definition, 3. Mathematical / Architectural Formulation, 4. Real-world Engineering Application.";
+      systemInstruction += "\n\nMode: Concept Explainer. Break down complex topics with: 1. Analogy, 2. Technical Definition, 3. Mathematical / Architecture Formulation, 4. Real-world Engineering Application.";
     } else if (mode === "code_review") {
-      systemInstruction = "You are StudentOS Code Debugger & Reviewer. Analyze code snippet for: 1. Bugs or edge cases, 2. Time Complexity $O(...)$ and Space Complexity $O(...)$, 3. Optimized refactored code block with detailed line comments.";
+      systemInstruction += "\n\nMode: Code Debugger. Review code for bugs, edge cases, $O(N)$ time & space complexity, and provide refactored code.";
     } else if (mode === "study_plan") {
-      systemInstruction = "You are StudentOS Study Plan Generator. Create a structured, hour-by-hour 7-day study schedule including Pomodoro focus blocks, active recall sessions, and rest breaks.";
+      systemInstruction += "\n\nMode: Study Plan Generator. Build a 7-day hour-by-hour focus schedule incorporating active recall and Pomodoro sessions based on the student's tasks and courses.";
     } else if (mode === "resume_review") {
-      systemInstruction = "You are StudentOS ATS Resume & Career Reviewer. Analyze resume bullet points, evaluate ATS pass rates, and rewrite achievements using high-impact action verbs and quantified metric formulas.";
+      systemInstruction += "\n\nMode: ATS Resume Reviewer. Rewrite bullet points using high-impact action verbs and quantified metric formulas based on the student's projects.";
     } else if (mode === "mock_interview") {
-      systemInstruction = "You are StudentOS Mock Technical Interviewer. Ask 1 challenging technical or behavioral interview question, evaluate the user's response, and provide constructive feedback with ideal answer structures.";
+      systemInstruction += "\n\nMode: Mock Interviewer. Ask 1 challenging technical question suitable for the student's tech stack, evaluate their answer, and provide ideal solutions.";
     } else if (mode === "quiz_gen") {
-      systemInstruction = "You are StudentOS Exam Quiz Generator. Generate 5 multiple-choice questions on the topic requested, followed by an Answer Key with detailed explanations for each question.";
+      systemInstruction += "\n\nMode: Exam Quiz Generator. Create 5 multiple-choice questions on the requested subject with answer key explanations.";
     }
 
     // 1. Google Gemini API
@@ -45,7 +88,7 @@ export async function POST(req: NextRequest) {
                   role: "user",
                   parts: [
                     {
-                      text: `${systemInstruction}\n\nStudent Prompt: ${lastUserMessage}`
+                      text: `${systemInstruction}\n\nStudent Message: ${lastUserMessage}`
                     }
                   ]
                 }
@@ -58,7 +101,7 @@ export async function POST(req: NextRequest) {
           const data = await geminiRes.json();
           const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "Gemini 1.5 Flash" });
+            return NextResponse.json({ reply: replyText, provider: "Google Gemini 1.5 Flash (Context RAG)" });
           }
         }
       } catch (_e) {}
@@ -89,13 +132,106 @@ export async function POST(req: NextRequest) {
           const data = await openaiRes.json();
           const replyText = data.choices?.[0]?.message?.content;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "OpenAI GPT-4o-mini" });
+            return NextResponse.json({ reply: replyText, provider: "OpenAI GPT-4o-mini (Context RAG)" });
           }
         }
       } catch (_e) {}
     }
 
-    // 3. Free Unlimited AI Engine
+    // 3. Anthropic Claude API
+    if (effectiveApiKey && provider === "claude") {
+      try {
+        const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": effectiveApiKey,
+            "anthropic-version": "2023-06-01"
+          },
+          body: JSON.stringify({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 2048,
+            system: systemInstruction,
+            messages: messages.map((m: { role: string; content: string }) => ({
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.content
+            }))
+          })
+        });
+
+        if (claudeRes.ok) {
+          const data = await claudeRes.json();
+          const replyText = data.content?.[0]?.text;
+          if (replyText) {
+            return NextResponse.json({ reply: replyText, provider: "Anthropic Claude 3.5 Sonnet (Context RAG)" });
+          }
+        }
+      } catch (_e) {}
+    }
+
+    // 4. DeepSeek API
+    if (effectiveApiKey && provider === "deepseek") {
+      try {
+        const deepseekRes = await fetch("https://api.deepseek.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${effectiveApiKey}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: [
+              { role: "system", content: systemInstruction },
+              ...messages.map((m: { role: string; content: string }) => ({
+                role: m.role,
+                content: m.content
+              }))
+            ]
+          })
+        });
+
+        if (deepseekRes.ok) {
+          const data = await deepseekRes.json();
+          const replyText = data.choices?.[0]?.message?.content;
+          if (replyText) {
+            return NextResponse.json({ reply: replyText, provider: "DeepSeek-V3 / R1 (Context RAG)" });
+          }
+        }
+      } catch (_e) {}
+    }
+
+    // 5. Groq / Llama 3 API
+    if (effectiveApiKey && provider === "groq") {
+      try {
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${effectiveApiKey}`
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [
+              { role: "system", content: systemInstruction },
+              ...messages.map((m: { role: string; content: string }) => ({
+                role: m.role,
+                content: m.content
+              }))
+            ]
+          })
+        });
+
+        if (groqRes.ok) {
+          const data = await groqRes.json();
+          const replyText = data.choices?.[0]?.message?.content;
+          if (replyText) {
+            return NextResponse.json({ reply: replyText, provider: "Llama 3.3 70B via Groq (Context RAG)" });
+          }
+        }
+      } catch (_e) {}
+    }
+
+    // 6. Free Unlimited StudentOS AI Engine (With Full Data Context RAG)
     try {
       const freeAiRes = await fetch(`https://text.pollinations.ai/`, {
         method: "POST",
@@ -115,30 +251,24 @@ export async function POST(req: NextRequest) {
       if (freeAiRes.ok) {
         const replyText = await freeAiRes.text();
         if (replyText && replyText.trim().length > 0) {
-          return NextResponse.json({ reply: replyText, provider: "Free Unlimited AI Engine" });
+          return NextResponse.json({ reply: replyText, provider: "Free Unlimited AI Engine (Context RAG)" });
         }
       }
     } catch (_e) {}
 
-    // 4. Multi-Domain Offline Academic Reasoning Engine (Fallback)
+    // 7. Context-Aware Offline Academic Reasoning Engine (Fallback)
     const lower = lastUserMessage.toLowerCase();
     let fallbackReply = "";
 
-    if (mode === "explain" || lower.includes("explain") || lower.includes("what is") || lower.includes("how does")) {
-      fallbackReply = `### 💡 Concept Breakdown\n\n1. **High-Level Analogy:** Imagine this concept as a smart traffic controller directing data packets to their exact destination based on priority rules.\n2. **Technical Core:** At its foundation, it optimizes state mutations and execution pipelines by eliminating unnecessary compute operations.\n3. **Practical Application:** Widely used in distributed web architectures, database indexing nodes, and real-time streaming engines.`;
-    } else if (mode === "code_review" || lower.includes("code") || lower.includes("review") || lower.includes("debug")) {
-      fallbackReply = `### 💻 Code Review & Complexity Analysis\n\n\`\`\`cpp\n// Optimized algorithm implementation\n#include <iostream>\n#include <vector>\n#include <unordered_map>\n\nstd::vector<int> twoSum(const std::vector<int>& nums, int target) {\n    std::unordered_map<int, int> seen;\n    for (int i = 0; i < nums.size(); ++i) {\n        int diff = target - nums[i];\n        if (seen.count(diff)) return {seen[diff], i};\n        seen[nums[i]] = i;\n    }\n    return {};\n}\n\`\`\`\n\n- **Time Complexity:** $O(N)$ — Single pass using Hash Map lookups.\n- **Space Complexity:** $O(N)$ — Stores element indices.`;
-    } else if (mode === "study_plan" || lower.includes("study") || lower.includes("plan") || lower.includes("schedule")) {
-      fallbackReply = `### 📅 7-Day High-Impact Study Schedule\n\n- **Days 1–2 (Core Concepts):** 2x 50-minute Pomodoro sessions on foundational theory & formulas.\n- **Days 3–4 (Problem Solving):** Solve 10 practice problems per day starting from Medium difficulty.\n- **Days 5–6 (Active Recall & Testing):** Review flashcards, formulas, and past exam question sets.\n- **Day 7 (Final Review & Rest):** Light revision deck overview and 8 hours sleep before exam day.`;
-    } else if (mode === "resume_review" || lower.includes("resume") || lower.includes("ats") || lower.includes("internship")) {
-      fallbackReply = `### 📄 ATS Resume Optimization Review\n\n- **Action Verb Formula:** Start bullet points with strong verbs (*Architected, Implemented, Deployed, Engineered*).\n- **Quantified Impact:** *"Architected full-stack Next.js web application on Vercel & Supabase, servicing 500+ active student users with <150ms latency."*\n- **ATS Formatting:** Avoid multi-column graphics; use standard Markdown/Word sections (Education, Experience, Projects, Technical Skills).`;
-    } else if (mode === "quiz_gen" || lower.includes("quiz") || lower.includes("test") || lower.includes("question")) {
-      fallbackReply = `### 🧪 Practice Quiz (5 Questions)\n\n**Q1:** What is the average time complexity of searching a value in a Balanced Binary Search Tree (AVL / Red-Black Tree)?\n- A) $O(1)$\n- B) $O(\\log N)$\n- C) $O(N)$\n- D) $O(N^2)$\n\n**Q2:** Which SQL clause is used to filter aggregated group records?\n- A) WHERE\n- B) HAVING\n- C) GROUP BY\n- D) ORDER BY\n\n*(Answer Key: Q1: B, Q2: B)*`;
+    if (lower.includes("task") || lower.includes("todo") || lower.includes("do today")) {
+      fallbackReply = `### 📋 Personalized Task & Priority Guidance\n\nBased on your live StudentOS data profile:\n\n${studentDataSummary}\n\n**Recommendation:** Complete your highest priority pending task in **Tasks Hub** first using a 50-minute Pomodoro block!`;
+    } else if (lower.includes("project") || lower.includes("milestone") || lower.includes("build")) {
+      fallbackReply = `### 🛠️ Portfolio Project Guidance\n\nBased on your live StudentOS projects:\n\n${studentDataSummary}\n\n**Recommendation:** Push your active project to the next milestone and log your progress slider in **Projects Hub**!`;
     } else {
-      fallbackReply = `### ⚡ StudentOS AI Mentor\n\nI processed your request: **"${lastUserMessage}"**.\n\n- **Actionable Next Step:** Schedule a 50-minute focus session in **Study Tracker** and track your goals in **Tasks**.`;
+      fallbackReply = `### ⚡ StudentOS AI Mentor (${providerPersona})\n\nI processed your request using your live StudentOS profile context:\n\n${studentDataSummary}\n\n**Action Item:** Keep logging your progress across **Tasks**, **Study Tracker**, and **Projects**!`;
     }
 
-    return NextResponse.json({ reply: fallbackReply, provider: "StudentOS AI Assistant" });
+    return NextResponse.json({ reply: fallbackReply, provider: "StudentOS AI Assistant (Context RAG)" });
   } catch (_err) {
     return NextResponse.json({ error: "Failed to process mentor request" }, { status: 500 });
   }

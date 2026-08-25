@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, Key,
   BookOpen, Code, Lightbulb, Check, Copy, Download, HelpCircle,
-  Briefcase, Calendar, Terminal, FileCheck, RefreshCw
+  Briefcase, Calendar, Terminal, FileCheck, RefreshCw, Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,17 +21,19 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  timestamp: string; // ISO string for localStorage serialization
+  timestamp: string;
   attachments?: { name: string; size: string }[];
 }
 
+type ProviderType = "gemini" | "openai" | "claude" | "deepseek" | "groq";
+
 const AI_MODES = [
-  { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What are we studying today?" },
-  { id: "explain", label: "🎓 Concept Explainer", icon: Lightbulb, prompt: "Explain the difference between Dynamic Programming and Greedy Algorithms with examples." },
-  { id: "code_review", label: "💻 Code Reviewer", icon: Code, prompt: "Review my code for time & space complexity optimizations:\n\n```cpp\nint findMax(int arr[], int n) {\n  int maxVal = arr[0];\n  for(int i=1; i<n; i++) if(arr[i]>maxVal) maxVal=arr[i];\n  return maxVal;\n}\n```" },
-  { id: "study_plan", label: "📅 Study Plan Builder", icon: Calendar, prompt: "Generate a 7-day intensive study plan for my Data Structures & Algorithms exam." },
-  { id: "resume_review", label: "📄 ATS Resume Reviewer", icon: FileCheck, prompt: "Review and rewrite these resume bullet points for high ATS pass rates:\n- Built a Next.js web application\n- Fixed bugs and worked on database" },
-  { id: "mock_interview", label: "⚡ Mock Interviewer", icon: Briefcase, prompt: "Ask me a technical mock interview question for a Software Engineering Internship." },
+  { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What should I focus on today based on my active tasks and projects?" },
+  { id: "explain", label: "🎓 Concept Explainer", icon: Lightbulb, prompt: "Explain the difference between Dynamic Programming and Greedy Algorithms with real-world code examples." },
+  { id: "code_review", label: "💻 Code Reviewer", icon: Code, prompt: "Review my code for bugs, edge cases, and time/space complexity:\n\n```cpp\nint findMax(int arr[], int n) {\n  int maxVal = arr[0];\n  for(int i=1; i<n; i++) if(arr[i]>maxVal) maxVal=arr[i];\n  return maxVal;\n}\n```" },
+  { id: "study_plan", label: "📅 Study Plan Builder", icon: Calendar, prompt: "Build a personalized 7-day intensive study schedule based on my active tasks and subjects." },
+  { id: "resume_review", label: "📄 ATS Resume Reviewer", icon: FileCheck, prompt: "Analyze my active StudentOS projects and write 3 high-impact, ATS-optimized resume bullet points." },
+  { id: "mock_interview", label: "⚡ Mock Interviewer", icon: Briefcase, prompt: "Ask me a technical mock interview question suitable for my active tech stack." },
   { id: "quiz_gen", label: "🧪 Exam Quiz Generator", icon: HelpCircle, prompt: "Generate 5 multiple-choice questions on Operating Systems (Process Scheduling & Deadlocks)." },
 ];
 
@@ -41,10 +43,10 @@ export default function AIMentorPage() {
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
   const [apiKey, setApiKey] = useState("");
-  const [provider, setProvider] = useState<"gemini" | "openai">("gemini");
+  const [provider, setProvider] = useState<ProviderType>("gemini");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
-  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI Mentor");
+  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI (Context RAG)");
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,11 +55,11 @@ export default function AIMentorPage() {
   // Load persistent state from localStorage
   useEffect(() => {
     const savedKey = localStorage.getItem("studentos_ai_key");
-    const savedProvider = localStorage.getItem("studentos_ai_provider");
+    const savedProvider = localStorage.getItem("studentos_ai_provider") as ProviderType;
     const savedChat = localStorage.getItem("studentos_chat_history");
 
     if (savedKey) setApiKey(savedKey);
-    if (savedProvider === "gemini" || savedProvider === "openai") setProvider(savedProvider);
+    if (savedProvider) setProvider(savedProvider);
 
     if (savedChat) {
       try {
@@ -74,7 +76,7 @@ export default function AIMentorPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS AI Mentor Copilot**. I can explain complex academic concepts, optimize programming code, build exam study plans, review resumes, or run mock technical interviews. How can I help you excel today?",
+        content: "Hello! I am your **StudentOS Context-Aware AI Mentor**. I am connected to your live database profile (active tasks, projects, habits, subjects, and reading lists).\n\nYou can ask me personalized questions about your workload, request code reviews, or connect your private **Google Gemini**, **OpenAI**, **Anthropic Claude**, **DeepSeek**, or **Groq / Llama 3** API key above! How can I assist you today?",
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -97,7 +99,16 @@ export default function AIMentorPage() {
     localStorage.setItem("studentos_ai_key", apiKey.trim());
     localStorage.setItem("studentos_ai_provider", provider);
     setKeyDialogOpen(false);
-    toast.success(`API Key saved! Provider: ${provider === "gemini" ? "Google Gemini" : "OpenAI"}`);
+
+    const providerNames: Record<ProviderType, string> = {
+      gemini: "Google Gemini 1.5",
+      openai: "OpenAI GPT-4o",
+      claude: "Anthropic Claude 3.5",
+      deepseek: "DeepSeek R1",
+      groq: "Llama 3.3 70B (Groq)"
+    };
+
+    toast.success(`API Key saved! Provider set to ${providerNames[provider]}`);
   };
 
   const handleClearChat = () => {
@@ -105,7 +116,7 @@ export default function AIMentorPage() {
       {
         id: Math.random().toString(),
         role: "assistant",
-        content: "Chat cleared! How can I assist you with your studies or career goals now?",
+        content: "Chat cleared! Ask me anything about your active tasks, projects, or study plans.",
         timestamp: new Date().toISOString(),
       },
     ];
@@ -217,7 +228,7 @@ export default function AIMentorPage() {
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             StudentOS AI Mentor Copilot
           </h1>
-          <p className="text-xs text-muted-foreground">Expert academic, coding, and career guidance for students</p>
+          <p className="text-xs text-muted-foreground">Context-Aware AI Mentor connected to your live database profile</p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
@@ -237,50 +248,58 @@ export default function AIMentorPage() {
           <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                <Key className="w-3.5 h-3.5 text-indigo-500" /> API Keys
+                <Cpu className="w-3.5 h-3.5 text-indigo-500" /> Select Model & Key
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-indigo-500" /> Configure API Key (Optional)
+                  <Key className="w-5 h-5 text-indigo-500" /> Configure LLM Model & Key
                 </DialogTitle>
                 <DialogDescription>
-                  Enter your Google Gemini or OpenAI API Key for custom private model access.
+                  Choose your preferred AI Model and enter your private API key.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">AI Provider</label>
-                  <Select value={provider} onValueChange={(val) => setProvider(val as "gemini" | "openai")}>
+                  <label className="text-xs font-semibold">AI Provider & Model</label>
+                  <Select value={provider} onValueChange={(val) => setProvider(val as ProviderType)}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select Provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gemini">Google Gemini API</SelectItem>
-                      <SelectItem value="openai">OpenAI API</SelectItem>
+                      <SelectItem value="gemini">Google Gemini 1.5 Flash / Pro</SelectItem>
+                      <SelectItem value="openai">OpenAI GPT-4o / GPT-4o-mini</SelectItem>
+                      <SelectItem value="claude">Anthropic Claude 3.5 Sonnet</SelectItem>
+                      <SelectItem value="deepseek">DeepSeek R1 / V3</SelectItem>
+                      <SelectItem value="groq">Groq — Llama 3.3 70B (Ultra Fast)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold">
-                    {provider === "gemini" ? "Google Gemini API Key" : "OpenAI API Key"}
+                    API Key for {provider.toUpperCase()}
                   </label>
                   <Input
                     type="password"
-                    placeholder={provider === "gemini" ? "AIzaSy..." : "sk-..."}
+                    placeholder={
+                      provider === "gemini" ? "AIzaSy..." :
+                      provider === "openai" ? "sk-..." :
+                      provider === "claude" ? "sk-ant-..." :
+                      provider === "groq" ? "gsk_..." : "sk-..."
+                    }
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Stored locally in your browser. Leave blank to use 100% Free Unlimited AI.
+                    Stored safely in local browser storage. Leave blank to use 100% Free Unlimited AI.
                   </p>
                 </div>
 
                 <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
-                  <Check className="w-4 h-4" /> Save Key
+                  <Check className="w-4 h-4" /> Save Model & Key
                 </Button>
               </div>
             </DialogContent>
@@ -304,6 +323,32 @@ export default function AIMentorPage() {
             {mode.label}
           </Button>
         ))}
+      </div>
+
+      {/* Context Action Quick Chips */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] text-muted-foreground">
+        <span className="shrink-0 font-semibold self-center">💡 Quick RAG Prompts:</span>
+        <button
+          type="button"
+          onClick={() => handleSend(undefined, "What pending tasks should I focus on today based on my active tasks list?")}
+          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
+        >
+          📋 What tasks to do today?
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSend(undefined, "Analyze my active projects and suggest what milestone to build next.")}
+          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
+        >
+          🛠️ Analyze my active projects
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSend(undefined, "Build an exam study plan based on my current subjects and progress.")}
+          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
+        >
+          📅 Exam study plan for my subjects
+        </button>
       </div>
 
       {/* Message Chat Pane */}
@@ -404,7 +449,7 @@ export default function AIMentorPage() {
           <Paperclip className="w-5 h-5" />
         </Button>
         <Input
-          placeholder="Ask any question, request code reviews, or build study plans..."
+          placeholder="Ask any question about your tasks, projects, or study concepts..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="flex-1 border-0 focus-visible:ring-0 bg-transparent text-sm"
@@ -425,7 +470,7 @@ export default function AIMentorPage() {
               <FileText className="w-3.5 h-3.5" />
               <span className="max-w-[120px] truncate">{f.name}</span>
               <button type="button" onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))} className="text-muted-foreground hover:text-destructive">
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </Badge>
           ))}
