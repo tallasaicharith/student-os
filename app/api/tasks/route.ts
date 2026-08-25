@@ -1,48 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, getOrCreateUser } from "@/lib/db";
 import { taskSchema } from "@/lib/validations/task.schema";
+import { TaskCategory, Priority } from "@prisma/client";
 
-export async function GET(req: NextRequest) {
+const INITIAL_TASK_SEEDS: { title: string; category: TaskCategory; priority: Priority }[] = [
+  { title: "Wake up at 4:00 AM", category: TaskCategory.PERSONAL, priority: Priority.HIGH },
+  { title: "Perform Gym workout (Chest + Triceps)", category: TaskCategory.FITNESS, priority: Priority.HIGH },
+  { title: "Drink 500ml water immediately after waking up", category: TaskCategory.PERSONAL, priority: Priority.MEDIUM },
+  { title: "Read Bhagavad Gita Chapter 2, Verse 47", category: TaskCategory.STUDY, priority: Priority.MEDIUM },
+  { title: "Attend B-Tech Lectures: Data Structures, AI", category: TaskCategory.STUDY, priority: Priority.HIGH },
+  { title: "Solve 5 LeetCode Dynamic Programming challenges", category: TaskCategory.PROJECT, priority: Priority.HIGH },
+  { title: "Read 20 pages of Grokking Algorithms", category: TaskCategory.STUDY, priority: Priority.MEDIUM }
+];
+
+export async function GET(_req: NextRequest) {
   try {
     const userId = await getOrCreateUser();
-    
-    // Parse date query parameter, default to today's date
-    const { searchParams } = new URL(req.url);
-    const dateStr = searchParams.get("date") || new Date().toISOString().slice(0, 10);
-    const dateObj = new Date(dateStr);
-    
-    const startOfDay = new Date(dateObj);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(dateObj);
-    endOfDay.setUTCHours(23, 59, 59, 999);
 
-    const tasks = await db.task.findMany({
-      where: {
-        userId,
-        dueDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-      },
+    // 1. Check if user already has tasks in Database
+    let tasks = await db.task.findMany({
+      where: { userId },
       orderBy: [{ done: "asc" }, { createdAt: "desc" }],
     });
 
+    // 2. Auto-seed real database records if 0 tasks exist
+    if (tasks.length === 0) {
+      await db.task.createMany({
+        data: INITIAL_TASK_SEEDS.map((t) => ({
+          ...t,
+          userId,
+          dueDate: new Date(),
+        })),
+      });
+
+      tasks = await db.task.findMany({
+        where: { userId },
+        orderBy: [{ done: "asc" }, { createdAt: "desc" }],
+      });
+    }
+
     return NextResponse.json(tasks);
-  } catch {
-    return NextResponse.json(DEFAULT_TASKS);
+  } catch (_e) {
+    return NextResponse.json([]);
   }
 }
-
-const DEFAULT_TASKS = [
-  { id: "t1", title: "Wake up at 4:00 AM", category: "PERSONAL", priority: "HIGH", done: false },
-  { id: "t2", title: "Perform Gym workout (Chest + Triceps)", category: "FITNESS", priority: "HIGH", done: false },
-  { id: "t3", title: "Drink 500ml water immediately after waking up", category: "PERSONAL", priority: "MEDIUM", done: false },
-  { id: "t4", title: "Read Bhagavad Gita Chapter 2, Verse 47", category: "STUDY", priority: "MEDIUM", done: false },
-  { id: "t5", title: "Attend B-Tech Lectures: Data Structures, AI", category: "STUDY", priority: "HIGH", done: false },
-  { id: "t6", title: "Solve 5 LeetCode Dynamic Programming challenges", category: "PROJECT", priority: "HIGH", done: false },
-  { id: "t7", title: "Read 20 pages of Grokking Algorithms", category: "STUDY", priority: "MEDIUM", done: false }
-];
 
 export async function POST(req: Request) {
   try {
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(task, { status: 201 });
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }

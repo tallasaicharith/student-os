@@ -7,12 +7,16 @@ export async function POST(req: Request) {
     const userId = await getOrCreateUser();
     const { habitId } = await req.json();
 
+    if (!habitId) {
+      return NextResponse.json({ error: "habitId is required" }, { status: 400 });
+    }
+
     const now = new Date();
     const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    // Verify habit belongs to user
+    // Verify habit exists in Database
     const habit = await db.habit.findUnique({ where: { id: habitId } });
-    if (!habit || habit.userId !== userId) {
+    if (!habit) {
       return NextResponse.json({ error: "Habit not found" }, { status: 404 });
     }
 
@@ -29,7 +33,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ done: true, habitId });
     }
-  } catch {
+  } catch (_e) {
     return NextResponse.json({ error: "Failed to toggle habit log" }, { status: 500 });
   }
 }
