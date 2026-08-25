@@ -11,8 +11,8 @@ export async function POST(req: NextRequest) {
     const {
       messages,
       apiKey: reqApiKey,
-      provider = "openai",
-      model = "gpt-4o-mini",
+      provider = "gemini",
+      model = "gemini-2.5-flash",
       userId = "guest_user",
       mode = "general",
       conversationId: reqConversationId,
@@ -26,30 +26,24 @@ export async function POST(req: NextRequest) {
     // 1. Multi-Tier Key Resolution (Request -> User DB -> Global DB -> ENV)
     let resolvedApiKey = reqApiKey ? String(reqApiKey).trim() : "";
 
-    if (!resolvedApiKey || (provider === "openai" && !resolvedApiKey.startsWith("sk-"))) {
+    if (!resolvedApiKey) {
       try {
         const userConfig = await db.aIProviderConfig.findUnique({ where: { userId } });
-        if (userConfig) {
-          if (provider === "gemini" && userConfig.geminiKey) resolvedApiKey = userConfig.geminiKey;
-          else if (provider === "openai" && userConfig.openaiKey) resolvedApiKey = userConfig.openaiKey;
-          else if (provider === "claude" && userConfig.anthropicKey) resolvedApiKey = userConfig.anthropicKey;
-          else if (provider === "groq" && userConfig.groqKey) resolvedApiKey = userConfig.groqKey;
+        if (userConfig && userConfig.geminiKey) {
+          resolvedApiKey = userConfig.geminiKey;
         }
       } catch (_dbErr) {}
     }
 
-    if (!resolvedApiKey || (provider === "openai" && !resolvedApiKey.startsWith("sk-"))) {
-      if (provider === "gemini") resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-      else if (provider === "openai") resolvedApiKey = process.env.OPENAI_API_KEY || "";
-      else if (provider === "claude") resolvedApiKey = process.env.ANTHROPIC_API_KEY || "";
-      else if (provider === "groq") resolvedApiKey = process.env.GROQ_API_KEY || "";
+    if (!resolvedApiKey) {
+      resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
     }
 
     // 2. LangChain Pipeline Chain Execution
     const stream = await LangChainExecutionChain.runChain({
       messages,
-      provider: provider as ProviderName,
-      model,
+      provider: "gemini" as ProviderName,
+      model: "gemini-2.5-flash",
       mode,
       apiKey: resolvedApiKey,
       userId,
@@ -67,8 +61,8 @@ export async function POST(req: NextRequest) {
           data: {
             userId,
             title,
-            selectedProvider: provider,
-            selectedModel: model,
+            selectedProvider: "gemini",
+            selectedModel: "gemini-2.5-flash",
             mode,
           },
         });
