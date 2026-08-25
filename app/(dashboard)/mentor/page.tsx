@@ -150,7 +150,20 @@ export default function AIMentorPage() {
     ];
     setMessages(defaultMsg);
     localStorage.removeItem("studentos_chat_history");
-    toast.success("Chat history cleared");
+    toast.success("All chat history cleared");
+  };
+
+  const handleDeleteMessage = (id: string) => {
+    setMessages((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      if (updated.length === 0) {
+        localStorage.removeItem("studentos_chat_history");
+      } else {
+        localStorage.setItem("studentos_chat_history", JSON.stringify(updated));
+      }
+      return updated;
+    });
+    toast.success("Message deleted");
   };
 
   const handleExportChat = () => {
@@ -451,9 +464,17 @@ export default function AIMentorPage() {
                     </div>
                   )}
                 </div>
-                <span className="text-[9px] text-muted-foreground px-2">
-                  {new Date(m.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                </span>
+                <div className="flex items-center justify-between px-2 text-[9px] text-muted-foreground">
+                  <span>{new Date(m.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMessage(m.id)}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity px-1 flex items-center gap-1"
+                    title="Delete this message"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
           );
