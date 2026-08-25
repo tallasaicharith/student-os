@@ -36,7 +36,8 @@ export default function HabitsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
-    onSuccess: () => {
+    onSuccess: (newHabit) => {
+      qc.setQueryData<Habit[]>(["habits"], (old) => (old ? [...old, newHabit] : [newHabit]));
       qc.invalidateQueries({ queryKey: ["habits"] });
       toast.success("New habit added! 🔥");
       setName("");

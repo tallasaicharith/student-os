@@ -43,7 +43,13 @@ export default function TasksPage() {
   const createTask = useMutation({
     mutationFn: (data: TaskFormValues) =>
       fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task added! 🚀"); setOpen(false); form.reset(); },
+    onSuccess: (newTask) => {
+      qc.setQueryData<Task[]>(["tasks"], (old) => (old ? [newTask, ...old] : [newTask]));
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Task added! 🚀");
+      setOpen(false);
+      form.reset();
+    },
     onError: () => toast.error("Failed to create task"),
   });
 
