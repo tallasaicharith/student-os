@@ -7,7 +7,6 @@ export class GeminiProvider implements AIProvider {
   private getApiKey(reqKey?: string): string {
     const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     let key = reqKey;
-    // Ignore any OpenAI keys starting with sk- and enforce Google Gemini Key
     if (!key || key.startsWith("sk-") || key.trim().length === 0) {
       key = envKey;
     }
@@ -37,7 +36,10 @@ export class GeminiProvider implements AIProvider {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify(payload),
     });
 
@@ -102,7 +104,10 @@ export class GeminiProvider implements AIProvider {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify(payload),
     });
 
@@ -126,7 +131,10 @@ export class GeminiProvider implements AIProvider {
     try {
       const key = this.getApiKey(apiKey);
       const listRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
+        {
+          headers: { "x-goog-api-key": key },
+        }
       );
 
       if (listRes.ok) {
