@@ -80,21 +80,14 @@ export default function AIMentorPage() {
   useEffect(() => {
     fetchConversations();
     
-    // Priority 1: Check localStorage for OpenAI or Gemini key
-    const localOpenAIKey = localStorage.getItem("studentos_openai_key");
+    // Force Google Gemini 2.5 Flash as active engine
     const localGeminiKey = localStorage.getItem("studentos_gemini_key");
-
-    if (localOpenAIKey && localOpenAIKey.trim()) {
-      setSavedApiKey(localOpenAIKey.trim());
-      setTempApiKeyInput(localOpenAIKey.trim());
-      setProvider("openai");
-      setModelName("gpt-4o-mini");
-    } else if (localGeminiKey && localGeminiKey.trim()) {
+    if (localGeminiKey && localGeminiKey.trim()) {
       setSavedApiKey(localGeminiKey.trim());
       setTempApiKeyInput(localGeminiKey.trim());
-      setProvider("gemini");
-      setModelName("gemini-2.0-flash");
     }
+    setProvider("gemini");
+    setModelName("gemini-2.5-flash");
 
     // Priority 2: Fetch Server Settings
     fetch("/api/ai/settings")

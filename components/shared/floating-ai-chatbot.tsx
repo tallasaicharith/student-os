@@ -82,7 +82,7 @@ export function FloatingAIChatbot() {
         {
           id: botMessageId,
           role: "assistant",
-          content: "I am ready to assist! Ask me any questions about your tasks, coding, or study timetable.",
+          content: "Connection error. Please resend your prompt to get a live Gemini response.",
         },
       ]);
     } finally {

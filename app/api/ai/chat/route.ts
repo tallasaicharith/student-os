@@ -11,8 +11,6 @@ export async function POST(req: NextRequest) {
     const {
       messages,
       apiKey: reqApiKey,
-      provider = "gemini",
-      model = "gemini-2.5-flash",
       userId = "guest_user",
       mode = "general",
       conversationId: reqConversationId,
@@ -23,10 +21,10 @@ export async function POST(req: NextRequest) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    // 1. Multi-Tier Key Resolution (Request -> User DB -> Global DB -> ENV)
+    // 1. Enforce Google Gemini API Key Resolution
     let resolvedApiKey = reqApiKey ? String(reqApiKey).trim() : "";
 
-    if (!resolvedApiKey) {
+    if (!resolvedApiKey || resolvedApiKey.startsWith("sk-")) {
       try {
         const userConfig = await db.aIProviderConfig.findUnique({ where: { userId } });
         if (userConfig && userConfig.geminiKey) {
@@ -35,11 +33,11 @@ export async function POST(req: NextRequest) {
       } catch (_dbErr) {}
     }
 
-    if (!resolvedApiKey) {
+    if (!resolvedApiKey || resolvedApiKey.startsWith("sk-")) {
       resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
     }
 
-    // 2. LangChain Pipeline Chain Execution
+    // 2. LangChain Pipeline Direct Gemini Execution
     const stream = await LangChainExecutionChain.runChain({
       messages,
       provider: "gemini" as ProviderName,

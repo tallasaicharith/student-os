@@ -7,7 +7,8 @@ export class GeminiProvider implements AIProvider {
   private getApiKey(reqKey?: string): string {
     const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     let key = reqKey;
-    if (!key || key.trim().length === 0) {
+    // Ignore any OpenAI keys starting with sk- and enforce Google Gemini Key
+    if (!key || key.startsWith("sk-") || key.trim().length === 0) {
       key = envKey;
     }
     if (!key || key.trim().length === 0) {
@@ -23,7 +24,7 @@ export class GeminiProvider implements AIProvider {
 
     const contents = req.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      parts: [{ text: m.content || " " }],
     }));
 
     const payload: any = { contents };
@@ -88,7 +89,7 @@ export class GeminiProvider implements AIProvider {
 
     const contents = req.messages.map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      parts: [{ text: m.content || " " }],
     }));
 
     const payload: any = { contents };
