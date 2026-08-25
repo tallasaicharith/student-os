@@ -1,0 +1,48 @@
+TALLA SAI CHARITH
+Bangalore, India | +91 98765 43210 | saicharith@gmail.com | github.com/tallasaicharith | linkedin.com/in/tallasaicharith
+
+================================================================================
+EDUCATION
+================================================================================
+Bachelor of Technology (B.Tech) in Computer Science & Engineering
+University College of Engineering | 2022 - 2026
+GPA: 8.9 / 10.0
+Relevant Coursework: Data Structures & Algorithms, Operating Systems, Database Management Systems, Computer Networks, Artificial Intelligence.
+
+================================================================================
+TECHNICAL SKILLS
+================================================================================
+- Programming Languages: C++, Python, JavaScript, TypeScript, SQL, HTML5/CSS3
+- Web & Backend Frameworks: React, Next.js, Node.js, Express.js, TailwindCSS, REST APIs
+- Databases & Cloud: PostgreSQL, Supabase, Prisma ORM, MongoDB, Redis, Docker, Git, GitHub Actions
+
+================================================================================
+KEY PROJECTS
+================================================================================
+StudentOS — All-in-One AI Academic & Productivity Platform
+GitHub: github.com/tallasaicharith/student-os | Live Demo: student-os.vercel.app
+- Designed and built a full-stack Next.js 16 productivity application serving 1,000+ active student users.
+- Integrated LangChain multi-model AI pipeline supporting Google Gemini 2.0 Flash, OpenAI GPT-4o, and Anthropic Claude.
+- Built an interactive ATS Resume Upload Scorer using TypeScript, increasing resume screening pass rates by 35%.
+- Implemented real-time Supabase PostgreSQL data persistence with zero data loss using session pooling architecture.
+
+Distributed Key-Value Cache Storage Engine (C++)
+GitHub: github.com/tallasaicharith/cpp-kv-cache
+- Engineered a multi-threaded LRU Cache engine in C++17 capable of processing 50,000 requests per second.
+- Reduced memory latency by 42% through custom memory pool allocators and lock-free thread synchronization.
+
+================================================================================
+EXPERIENCE & LEADERSHIP
+================================================================================
+Software Engineering Intern | Tech Innovators Lab
+May 2025 - July 2025 | Remote
+- Optimized database SQL query performance by 40% through indexing and query refactoring on PostgreSQL tables.
+- Developed 12 reusable REST API endpoints in TypeScript using Next.js route handlers.
+- Reduced client bundle size by 28% using code-splitting and dynamic imports.
+
+================================================================================
+ACHIEVEMENTS & CERTIFICATIONS
+================================================================================
+- Solved 350+ Data Structures & Algorithms problems on LeetCode (Rating: 1720+).
+- AWS Certified Cloud Practitioner (2025).
+- 1st Place Winner - University Annual Hackathon 2025 (Built an AI Study Copilot).
