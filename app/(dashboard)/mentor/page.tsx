@@ -27,6 +27,34 @@ interface Message {
 
 type ProviderType = "gemini" | "openai" | "claude" | "deepseek" | "groq";
 
+const MODEL_OPTIONS: Record<ProviderType, { id: string; name: string }[]> = {
+  gemini: [
+    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Next-Gen)" },
+    { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep Reasoning)" },
+    { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Fast)" },
+  ],
+  openai: [
+    { id: "gpt-4o", name: "GPT-4o (Omni Flags)" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini (Efficient)" },
+    { id: "o3-mini", name: "o3-mini (STEM & Code Reasoning)" },
+    { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
+  ],
+  claude: [
+    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (Best Coding)" },
+    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku (Lightning Fast)" },
+    { id: "claude-3-opus-20240229", name: "Claude 3 Opus (High Intelligence)" },
+  ],
+  deepseek: [
+    { id: "deepseek-chat", name: "DeepSeek-V3 (General Chat)" },
+    { id: "deepseek-reasoner", name: "DeepSeek-R1 (Full Reasoning)" },
+  ],
+  groq: [
+    { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B (Groq Ultra Fast)" },
+    { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B (MoE Architecture)" },
+    { id: "gemma2-9b-it", name: "Gemma 2 9B (Google Lightweight)" },
+  ],
+};
+
 const AI_MODES = [
   { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What should I focus on today based on my active tasks and projects?" },
   { id: "explain", label: "🎓 Concept Explainer", icon: Lightbulb, prompt: "Explain the difference between Dynamic Programming and Greedy Algorithms with real-world code examples." },
@@ -44,9 +72,10 @@ export default function AIMentorPage() {
   const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
   const [apiKey, setApiKey] = useState("");
   const [provider, setProvider] = useState<ProviderType>("gemini");
+  const [modelName, setModelName] = useState("gemini-2.0-flash");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
-  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI (Context RAG)");
+  const [activeProviderName, setActiveProviderName] = useState("✨ Free Unlimited AI (gemini-2.0-flash)");
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -56,10 +85,12 @@ export default function AIMentorPage() {
   useEffect(() => {
     const savedKey = localStorage.getItem("studentos_ai_key");
     const savedProvider = localStorage.getItem("studentos_ai_provider") as ProviderType;
+    const savedModel = localStorage.getItem("studentos_ai_model");
     const savedChat = localStorage.getItem("studentos_chat_history");
 
     if (savedKey) setApiKey(savedKey);
     if (savedProvider) setProvider(savedProvider);
+    if (savedModel) setModelName(savedModel);
 
     if (savedChat) {
       try {
@@ -71,12 +102,11 @@ export default function AIMentorPage() {
       } catch (_e) {}
     }
 
-    // Default welcome message if no history
     setMessages([
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS Context-Aware AI Mentor**. I am connected to your live database profile (active tasks, projects, habits, subjects, and reading lists).\n\nYou can ask me personalized questions about your workload, request code reviews, or connect your private **Google Gemini**, **OpenAI**, **Anthropic Claude**, **DeepSeek**, or **Groq / Llama 3** API key above! How can I assist you today?",
+        content: "Hello! I am your **StudentOS AI Mentor Copilot**. You can switch model versions anytime (e.g. **Gemini 2.0 Flash**, **Gemini 1.5 Pro**, **GPT-4o**, **Claude 3.5 Sonnet**, **DeepSeek R1**, **Llama 3.3 70B**). I am connected to your live database profile. How can I help you today?",
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -95,20 +125,18 @@ export default function AIMentorPage() {
     }
   }, [messages, loading]);
 
+  const handleProviderChange = (val: ProviderType) => {
+    setProvider(val);
+    const firstModel = MODEL_OPTIONS[val][0].id;
+    setModelName(firstModel);
+  };
+
   const handleSaveApiKey = () => {
     localStorage.setItem("studentos_ai_key", apiKey.trim());
     localStorage.setItem("studentos_ai_provider", provider);
+    localStorage.setItem("studentos_ai_model", modelName);
     setKeyDialogOpen(false);
-
-    const providerNames: Record<ProviderType, string> = {
-      gemini: "Google Gemini 1.5",
-      openai: "OpenAI GPT-4o",
-      claude: "Anthropic Claude 3.5",
-      deepseek: "DeepSeek R1",
-      groq: "Llama 3.3 70B (Groq)"
-    };
-
-    toast.success(`API Key saved! Provider set to ${providerNames[provider]}`);
+    toast.success(`Model updated to ${modelName} (${provider.toUpperCase()})`);
   };
 
   const handleClearChat = () => {
@@ -181,6 +209,7 @@ export default function AIMentorPage() {
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
           apiKey: apiKey.trim(),
           provider,
+          modelName,
           mode: selectedMode,
         }),
       });
@@ -228,7 +257,7 @@ export default function AIMentorPage() {
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             StudentOS AI Mentor Copilot
           </h1>
-          <p className="text-xs text-muted-foreground">Context-Aware AI Mentor connected to your live database profile</p>
+          <p className="text-xs text-muted-foreground">Select AI Models (Gemini 2.0, GPT-4o, Claude 3.5, DeepSeek R1, Llama 3.3)</p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
@@ -244,36 +273,52 @@ export default function AIMentorPage() {
             <Trash2 className="w-3.5 h-3.5" /> Clear
           </Button>
 
-          {/* Key Dialog */}
+          {/* Key & Model Selector Dialog */}
           <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-                <Cpu className="w-3.5 h-3.5 text-indigo-500" /> Select Model & Key
+                <Cpu className="w-3.5 h-3.5 text-indigo-500" /> Switch Model & Key
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-indigo-500" /> Configure LLM Model & Key
+                  <Cpu className="w-5 h-5 text-indigo-500" /> Choose AI Model Version & Key
                 </DialogTitle>
                 <DialogDescription>
-                  Choose your preferred AI Model and enter your private API key.
+                  Select your preferred AI provider, model version, and enter your key.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-4 py-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">AI Provider & Model</label>
-                  <Select value={provider} onValueChange={(val) => setProvider(val as ProviderType)}>
+                  <label className="text-xs font-semibold">AI Provider</label>
+                  <Select value={provider} onValueChange={(val) => handleProviderChange(val as ProviderType)}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select Provider" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gemini">Google Gemini 1.5 Flash / Pro</SelectItem>
-                      <SelectItem value="openai">OpenAI GPT-4o / GPT-4o-mini</SelectItem>
-                      <SelectItem value="claude">Anthropic Claude 3.5 Sonnet</SelectItem>
-                      <SelectItem value="deepseek">DeepSeek R1 / V3</SelectItem>
-                      <SelectItem value="groq">Groq — Llama 3.3 70B (Ultra Fast)</SelectItem>
+                      <SelectItem value="gemini">Google Gemini</SelectItem>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="claude">Anthropic Claude</SelectItem>
+                      <SelectItem value="deepseek">DeepSeek AI</SelectItem>
+                      <SelectItem value="groq">Groq (Ultra Fast Open Source)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">Specific Model Version</label>
+                  <Select value={modelName} onValueChange={setModelName}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select Model Version" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MODEL_OPTIONS[provider].map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -294,12 +339,12 @@ export default function AIMentorPage() {
                     onChange={(e) => setApiKey(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Stored safely in local browser storage. Leave blank to use 100% Free Unlimited AI.
+                    Leave blank to use 100% Free Unlimited AI with full student database context.
                   </p>
                 </div>
 
                 <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
-                  <Check className="w-4 h-4" /> Save Model & Key
+                  <Check className="w-4 h-4" /> Save Model Selection
                 </Button>
               </div>
             </DialogContent>
@@ -327,7 +372,7 @@ export default function AIMentorPage() {
 
       {/* Context Action Quick Chips */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] text-muted-foreground">
-        <span className="shrink-0 font-semibold self-center">💡 Quick RAG Prompts:</span>
+        <span className="shrink-0 font-semibold self-center">💡 Quick Prompts:</span>
         <button
           type="button"
           onClick={() => handleSend(undefined, "What pending tasks should I focus on today based on my active tasks list?")}

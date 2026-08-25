@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   try {
     const userId = await getOrCreateUser();
     const body = await req.json();
-    const { messages, apiKey, provider = "gemini", mode = "general" } = body;
+    const { messages, apiKey, provider = "gemini", modelName, mode = "general" } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: "Messages array is required" }, { status: 400 });
@@ -39,19 +39,17 @@ export async function POST(req: NextRequest) {
 - **Internship Applications**: ${user.applications.length > 0 ? user.applications.map(a => `${a.role} [Stage: ${a.status}]`).join("; ") : "No job applications tracked."}
 `;
       }
-    } catch (_e) {
-      // Fallback context if DB query encounters error
-    }
+    } catch (_e) {}
 
     // Base System Instructions with persona adoption
-    let providerPersona = "StudentOS AI Academic & Career Copilot";
-    if (provider === "gemini") providerPersona = "Google Gemini 1.5 AI";
-    if (provider === "openai") providerPersona = "OpenAI GPT-4o AI";
-    if (provider === "claude") providerPersona = "Anthropic Claude 3.5 Sonnet AI";
-    if (provider === "deepseek") providerPersona = "DeepSeek R1 AI";
-    if (provider === "groq") providerPersona = "Llama 3.3 70B (via Groq) AI";
+    const targetModel = modelName || (
+      provider === "gemini" ? "gemini-2.0-flash" :
+      provider === "openai" ? "gpt-4o" :
+      provider === "claude" ? "claude-3-5-sonnet-20241022" :
+      provider === "deepseek" ? "deepseek-chat" : "llama-3.3-70b-versatile"
+    );
 
-    let systemInstruction = `You are ${providerPersona}, serving as an elite academic, coding, and career mentor integrated into StudentOS.
+    let systemInstruction = `You are StudentOS AI Mentor powered by ${targetModel}.
 You have FULL ACCESS to the student's live data context below. When the student asks about their tasks, projects, habits, study progress, or career plans, USE THEIR ACTUAL DATA to give specific, personalized advice.
 
 ${studentDataSummary}
@@ -77,8 +75,9 @@ Formatting Instructions:
     // 1. Google Gemini API
     if (effectiveApiKey && (provider === "gemini" || effectiveApiKey.startsWith("AIza"))) {
       try {
+        const selectedGeminiModel = modelName || "gemini-1.5-flash";
         const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${effectiveApiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${selectedGeminiModel}:generateContent?key=${effectiveApiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -101,7 +100,7 @@ Formatting Instructions:
           const data = await geminiRes.json();
           const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "Google Gemini 1.5 Flash (Context RAG)" });
+            return NextResponse.json({ reply: replyText, provider: `Google ${selectedGeminiModel}` });
           }
         }
       } catch (_e) {}
@@ -110,6 +109,7 @@ Formatting Instructions:
     // 2. OpenAI API
     if (effectiveApiKey && (provider === "openai" || effectiveApiKey.startsWith("sk-"))) {
       try {
+        const selectedOpenAIModel = modelName || "gpt-4o-mini";
         const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -117,7 +117,7 @@ Formatting Instructions:
             Authorization: `Bearer ${effectiveApiKey}`
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: selectedOpenAIModel,
             messages: [
               { role: "system", content: systemInstruction },
               ...messages.map((m: { role: string; content: string }) => ({
@@ -132,7 +132,7 @@ Formatting Instructions:
           const data = await openaiRes.json();
           const replyText = data.choices?.[0]?.message?.content;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "OpenAI GPT-4o-mini (Context RAG)" });
+            return NextResponse.json({ reply: replyText, provider: `OpenAI ${selectedOpenAIModel}` });
           }
         }
       } catch (_e) {}
@@ -141,6 +141,7 @@ Formatting Instructions:
     // 3. Anthropic Claude API
     if (effectiveApiKey && provider === "claude") {
       try {
+        const selectedClaudeModel = modelName || "claude-3-5-sonnet-20241022";
         const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -149,7 +150,7 @@ Formatting Instructions:
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-3-5-sonnet-20241022",
+            model: selectedClaudeModel,
             max_tokens: 2048,
             system: systemInstruction,
             messages: messages.map((m: { role: string; content: string }) => ({
@@ -163,7 +164,7 @@ Formatting Instructions:
           const data = await claudeRes.json();
           const replyText = data.content?.[0]?.text;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "Anthropic Claude 3.5 Sonnet (Context RAG)" });
+            return NextResponse.json({ reply: replyText, provider: `Anthropic ${selectedClaudeModel}` });
           }
         }
       } catch (_e) {}
@@ -172,6 +173,7 @@ Formatting Instructions:
     // 4. DeepSeek API
     if (effectiveApiKey && provider === "deepseek") {
       try {
+        const selectedDeepSeekModel = modelName || "deepseek-chat";
         const deepseekRes = await fetch("https://api.deepseek.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -179,7 +181,7 @@ Formatting Instructions:
             Authorization: `Bearer ${effectiveApiKey}`
           },
           body: JSON.stringify({
-            model: "deepseek-chat",
+            model: selectedDeepSeekModel,
             messages: [
               { role: "system", content: systemInstruction },
               ...messages.map((m: { role: string; content: string }) => ({
@@ -194,7 +196,7 @@ Formatting Instructions:
           const data = await deepseekRes.json();
           const replyText = data.choices?.[0]?.message?.content;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "DeepSeek-V3 / R1 (Context RAG)" });
+            return NextResponse.json({ reply: replyText, provider: `DeepSeek ${selectedDeepSeekModel}` });
           }
         }
       } catch (_e) {}
@@ -203,6 +205,7 @@ Formatting Instructions:
     // 5. Groq / Llama 3 API
     if (effectiveApiKey && provider === "groq") {
       try {
+        const selectedGroqModel = modelName || "llama-3.3-70b-versatile";
         const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -210,7 +213,7 @@ Formatting Instructions:
             Authorization: `Bearer ${effectiveApiKey}`
           },
           body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
+            model: selectedGroqModel,
             messages: [
               { role: "system", content: systemInstruction },
               ...messages.map((m: { role: string; content: string }) => ({
@@ -225,13 +228,13 @@ Formatting Instructions:
           const data = await groqRes.json();
           const replyText = data.choices?.[0]?.message?.content;
           if (replyText) {
-            return NextResponse.json({ reply: replyText, provider: "Llama 3.3 70B via Groq (Context RAG)" });
+            return NextResponse.json({ reply: replyText, provider: `Groq ${selectedGroqModel}` });
           }
         }
       } catch (_e) {}
     }
 
-    // 6. Free Unlimited StudentOS AI Engine (With Full Data Context RAG)
+    // 6. Free Unlimited StudentOS AI Engine
     try {
       const freeAiRes = await fetch(`https://text.pollinations.ai/`, {
         method: "POST",
@@ -251,24 +254,16 @@ Formatting Instructions:
       if (freeAiRes.ok) {
         const replyText = await freeAiRes.text();
         if (replyText && replyText.trim().length > 0) {
-          return NextResponse.json({ reply: replyText, provider: "Free Unlimited AI Engine (Context RAG)" });
+          return NextResponse.json({ reply: replyText, provider: `Free AI (${targetModel})` });
         }
       }
     } catch (_e) {}
 
-    // 7. Context-Aware Offline Academic Reasoning Engine (Fallback)
+    // 7. Fallback Reasoning Engine
     const lower = lastUserMessage.toLowerCase();
-    let fallbackReply = "";
+    let fallbackReply = `### ⚡ StudentOS AI Mentor (${targetModel})\n\nI processed your query using your live StudentOS database profile context:\n\n${studentDataSummary}\n\n**Actionable Item:** Continue tracking your focus goals across **Tasks**, **Study Tracker**, and **Projects**!`;
 
-    if (lower.includes("task") || lower.includes("todo") || lower.includes("do today")) {
-      fallbackReply = `### 📋 Personalized Task & Priority Guidance\n\nBased on your live StudentOS data profile:\n\n${studentDataSummary}\n\n**Recommendation:** Complete your highest priority pending task in **Tasks Hub** first using a 50-minute Pomodoro block!`;
-    } else if (lower.includes("project") || lower.includes("milestone") || lower.includes("build")) {
-      fallbackReply = `### 🛠️ Portfolio Project Guidance\n\nBased on your live StudentOS projects:\n\n${studentDataSummary}\n\n**Recommendation:** Push your active project to the next milestone and log your progress slider in **Projects Hub**!`;
-    } else {
-      fallbackReply = `### ⚡ StudentOS AI Mentor (${providerPersona})\n\nI processed your request using your live StudentOS profile context:\n\n${studentDataSummary}\n\n**Action Item:** Keep logging your progress across **Tasks**, **Study Tracker**, and **Projects**!`;
-    }
-
-    return NextResponse.json({ reply: fallbackReply, provider: "StudentOS AI Assistant (Context RAG)" });
+    return NextResponse.json({ reply: fallbackReply, provider: `StudentOS ${targetModel}` });
   } catch (_err) {
     return NextResponse.json({ error: "Failed to process mentor request" }, { status: 500 });
   }
