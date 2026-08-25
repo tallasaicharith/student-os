@@ -23,7 +23,7 @@ export class LangChainPromptTemplate {
 
 export class LangChainExecutionChain {
   /**
-   * Direct 100% Stream Execution via Google AI Studio Gemini API
+   * Safe Direct Stream Execution via Google AI Studio Gemini API
    */
   static async runChain(params: {
     messages: ChatMessage[];
@@ -40,11 +40,16 @@ export class LangChainExecutionChain {
     const attachmentContext = AttachmentProcessor.processAttachments(attachments || lastUserMessageObj?.attachments);
     const processedMessages = StudentContextService.manageConversationHistory(messages, 16);
 
-    const studentContext = await StudentContextService.getRelevantContext(userId, {
-      includeTasks: mode === "general" || mode === "study_plan",
-      includeProjects: mode === "general" || mode === "code_review" || mode === "resume_review",
-      includeSchedule: mode === "study_plan",
-    });
+    let studentContext = "";
+    try {
+      studentContext = await StudentContextService.getRelevantContext(userId, {
+        includeTasks: mode === "general" || mode === "study_plan",
+        includeProjects: mode === "general" || mode === "code_review" || mode === "resume_review",
+        includeSchedule: mode === "study_plan",
+      });
+    } catch (_dbErr) {
+      studentContext = "";
+    }
 
     const systemPrompt = LangChainPromptTemplate.formatSystemPrompt(mode, studentContext, attachmentContext);
     const selectedProvider = aiRegistry.getProvider("gemini");

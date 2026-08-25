@@ -86,9 +86,21 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "Internal Server Error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
+    const errorMsg = err?.message || "Error connecting to AI service.";
+    const encoder = new TextEncoder();
+    const errorStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(`⚠️ AI Stream Notice: ${errorMsg}`));
+        controller.close();
+      },
+    });
+
+    return new Response(errorStream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+      },
     });
   }
 }
