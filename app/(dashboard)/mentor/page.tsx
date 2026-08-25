@@ -395,7 +395,7 @@ export default function AIMentorPage() {
       <div className={cn("w-64 border-r bg-muted/30 flex flex-col transition-all shrink-0", !sidebarOpen && "hidden md:flex md:w-16")}>
         <div className="p-3 border-b flex items-center justify-between">
           {sidebarOpen ? (
-            <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs" onClick={handleNewChat}>
+            <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2 text-xs" onClick={handleNewChat}>
               <Plus className="w-4 h-4" /> New Chat
             </Button>
           ) : (
@@ -485,7 +485,7 @@ export default function AIMentorPage() {
                     value={tempApiKeyInput}
                     onChange={(e) => setTempApiKeyInput(e.target.value)}
                   />
-                  <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <Button onClick={handleSaveApiKey} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                     Save Key Permanently
                   </Button>
                 </div>
@@ -541,7 +541,7 @@ export default function AIMentorPage() {
                     </Select>
                   </div>
 
-                  <Button onClick={() => setKeyDialogOpen(false)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  <Button onClick={() => setKeyDialogOpen(false)} className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                     Apply Model
                   </Button>
                 </div>
@@ -723,7 +723,7 @@ export default function AIMentorPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-7 px-3 text-xs gap-1"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl h-7 px-3 text-xs gap-1"
                 disabled={loading || streaming || (!input.trim() && files.length === 0)}
               >
                 <Send className="w-3.5 h-3.5" /> Send

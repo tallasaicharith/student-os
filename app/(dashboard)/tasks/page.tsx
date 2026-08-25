@@ -160,7 +160,7 @@ export default function TasksPage() {
       <PageHeader title="✅ Tasks" description="Manage your daily study and project to-dos">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
               <Plus className="w-4 h-4" /> Add Task
             </Button>
           </DialogTrigger>
@@ -209,7 +209,7 @@ export default function TasksPage() {
                     <FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl>
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={createTask.isPending}>
+                <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={createTask.isPending}>
                   {createTask.isPending ? "Saving..." : "Save Task"}
                 </Button>
               </form>

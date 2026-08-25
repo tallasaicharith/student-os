@@ -101,7 +101,7 @@ export default function HabitsPage() {
       <PageHeader title="🔥 Habit Tracker" description="Build the discipline of champions. Track your daily habits.">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700 text-white gap-2">
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
               <Plus className="w-4 h-4" /> Add Habit
             </Button>
           </DialogTrigger>
@@ -125,7 +125,7 @@ export default function HabitsPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white" disabled={createHabit.isPending}>
+              <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90" disabled={createHabit.isPending}>
                 Save Habit
               </Button>
             </form>
