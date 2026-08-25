@@ -189,7 +189,7 @@ export default function AIMentorPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS OpenAI / Multi-Model AI Copilot**. I retain full multi-turn conversational memory, support streaming answers, and understand file uploads. How can I assist you today?",
+        content: "Hello! How can I assist you with your studies, tasks, or coding today?",
         timestamp: new Date().toISOString(),
       },
     ]);

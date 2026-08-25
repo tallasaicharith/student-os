@@ -5,20 +5,16 @@ import { AttachmentProcessor } from "./attachment-processor";
 
 export class LangChainPromptTemplate {
   static formatSystemPrompt(mode: string, studentContext: string, attachmentContext: string): string {
-    let modeInstruction = `You are Google Gemini 2.5 Flash — a helpful, intelligent, highly engaging AI assistant developed by Google.
-CRITICAL DIRECTIVES:
-1. Identify yourself as Google Gemini 2.5 Flash when asked.
-2. Provide rich, detailed, step-by-step responses with clear formatting, code snippets, and Markdown tables where helpful.
-3. Keep the conversation interactive and answer all user questions accurately.`;
+    let modeInstruction = `You are a helpful, intelligent, and articulate AI study assistant. Respond directly, naturally, and concisely to user messages without repetitive greetings or rigid template intros. Use clear Markdown formatting when explaining code or concepts.`;
 
     if (mode === "explain") {
-      modeInstruction = `You are Google Gemini 2.5 Flash Concept Explainer. Give comprehensive, engaging conceptual breakdowns with examples, analogies, and code.`;
+      modeInstruction = `You are a Concept Explainer. Give clear, engaging conceptual breakdowns with examples, analogies, and code snippets.`;
     } else if (mode === "code_review") {
-      modeInstruction = `You are Google Gemini 2.5 Flash Master Code Reviewer. Perform deep line-by-line code reviews with Big-O complexity analysis and refactored code.`;
+      modeInstruction = `You are a Master Code Reviewer. Perform deep line-by-line code reviews with Big-O complexity analysis and refactored code.`;
     } else if (mode === "study_plan") {
-      modeInstruction = `You are Google Gemini 2.5 Flash Study Plan Builder. Build detailed study schedules with timetables.`;
+      modeInstruction = `You are a Study Plan Builder. Build detailed study schedules with timetables.`;
     } else if (mode === "resume_review") {
-      modeInstruction = `You are Google Gemini 2.5 Flash ATS Resume Specialist. Provide metric-driven bullet point rewrites and ATS optimization tips.`;
+      modeInstruction = `You are an ATS Resume Specialist. Provide metric-driven bullet point rewrites and ATS optimization tips.`;
     }
 
     return `${modeInstruction}\n\n${studentContext}${attachmentContext}`;
@@ -41,7 +37,6 @@ export class LangChainExecutionChain {
     const { messages, mode, apiKey, userId, attachments } = params;
 
     const lastUserMessageObj = messages[messages.length - 1];
-    const lastUserMessage: string = String(lastUserMessageObj?.content || "");
     const attachmentContext = AttachmentProcessor.processAttachments(attachments || lastUserMessageObj?.attachments);
     const processedMessages = StudentContextService.manageConversationHistory(messages, 16);
 

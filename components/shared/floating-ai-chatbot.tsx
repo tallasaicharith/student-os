@@ -19,7 +19,7 @@ export function FloatingAIChatbot() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi! I am your **StudentOS AI Assistant**. How can I help with your study, coding, or tasks today?",
+      content: "Hi! How can I help with your study, coding, or tasks today?",
     },
   ]);
   const [input, setInput] = useState("");

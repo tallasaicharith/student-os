@@ -26,17 +26,18 @@ export class GeminiProvider implements AIProvider {
       parts: [{ text: m.content }],
     }));
 
+    const payload: any = { contents };
+
     if (req.systemPrompt) {
-      contents.unshift({
-        role: "user",
-        parts: [{ text: `[SYSTEM INSTRUCTIONS]: ${req.systemPrompt}` }],
-      });
+      payload.system_instruction = {
+        parts: [{ text: req.systemPrompt }],
+      };
     }
 
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -90,17 +91,18 @@ export class GeminiProvider implements AIProvider {
       parts: [{ text: m.content }],
     }));
 
+    const payload: any = { contents };
+
     if (req.systemPrompt) {
-      contents.unshift({
-        role: "user",
-        parts: [{ text: `[SYSTEM INSTRUCTIONS]: ${req.systemPrompt}` }],
-      });
+      payload.system_instruction = {
+        parts: [{ text: req.systemPrompt }],
+      };
     }
 
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
