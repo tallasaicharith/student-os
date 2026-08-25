@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sanitizePromptText } from "./security";
+import { ChatMessage } from "./types";
 
 export interface StudentContextOptions {
   includeTasks?: boolean;
@@ -9,6 +10,31 @@ export interface StudentContextOptions {
 }
 
 export class StudentContextService {
+  /**
+   * Smart Context Truncator for Long Conversations (100+ turns)
+   */
+  static manageConversationHistory(messages: ChatMessage[], maxRecentTurns = 12): ChatMessage[] {
+    if (messages.length <= maxRecentTurns) {
+      return messages;
+    }
+
+    // Always preserve system message if present
+    const systemMessages = messages.filter((m) => m.role === "system");
+    const chatMessages = messages.filter((m) => m.role !== "system");
+
+    // Take recent N turns
+    const recentMessages = chatMessages.slice(-maxRecentTurns);
+
+    // Create a compact summary header of earlier discussion
+    const olderCount = chatMessages.length - maxRecentTurns;
+    const summaryNotice: ChatMessage = {
+      role: "system",
+      content: `[Note: Conversation history truncated. ${olderCount} earlier messages summarized. Continue conversational context seamlessly.]`,
+    };
+
+    return [...systemMessages, summaryNotice, ...recentMessages];
+  }
+
   /**
    * Retrieves MINIMUM NECESSARY context for the current request
    */
@@ -57,9 +83,7 @@ export class StudentContextService {
         const projDetails = user.projects.map((p) => `• ${sanitizePromptText(p.name)} (${p.progress}% done) - Stack: ${p.stack}`).join("\n");
         contextBlocks.push(`ACTIVE PROJECTS:\n${projDetails}`);
       }
-    } catch (_e) {
-      // Graceful context retrieval failover
-    }
+    } catch (_e) {}
 
     if (contextBlocks.length === 0) return "";
 

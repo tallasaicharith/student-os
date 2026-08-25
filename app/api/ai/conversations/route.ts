@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, getOrCreateUser } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const userId = await getOrCreateUser();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (id) {
+      const conversation = await db.aIConversation.findUnique({
+        where: { id },
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+
+      if (!conversation || conversation.userId !== userId) {
+        return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+      }
+
+      return NextResponse.json(conversation);
+    }
+
     const conversations = await db.aIConversation.findMany({
       where: { userId },
       orderBy: { updatedAt: "desc" },
@@ -39,6 +59,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(conversation);
   } catch (_e) {
     return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const userId = await getOrCreateUser();
+    const { id, title } = await req.json();
+
+    if (!id || !title) {
+      return NextResponse.json({ error: "ID and title are required" }, { status: 400 });
+    }
+
+    const conversation = await db.aIConversation.findUnique({ where: { id } });
+    if (!conversation || conversation.userId !== userId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const updated = await db.aIConversation.update({
+      where: { id },
+      data: { title: title.trim() },
+    });
+
+    return NextResponse.json(updated);
+  } catch (_e) {
+    return NextResponse.json({ error: "Failed to rename conversation" }, { status: 500 });
   }
 }
 

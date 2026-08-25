@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db, getOrCreateUser } from "@/lib/db";
 import { aiRegistry } from "@/lib/ai/registry";
 import { StudentContextService } from "@/lib/ai/context";
+import { AttachmentProcessor } from "@/lib/ai/attachment-processor";
 import { ProviderName } from "@/lib/ai/types";
 
 export async function POST(req: NextRequest) {
@@ -19,60 +20,55 @@ export async function POST(req: NextRequest) {
       provider = "gemini",
       model = "gemini-2.0-flash",
       mode = "general",
-      conversationId,
+      conversationId: reqConversationId,
+      attachments,
     } = body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    const lastUserMessage = messages[messages.length - 1]?.content || "";
+    // 1. Process Multi-Turn History & Attachment Context
+    const lastUserMessageObj = messages[messages.length - 1];
+    const lastUserMessage = lastUserMessageObj?.content || "";
 
-    // 1. Minimum Necessary Student Context (RAG)
+    const attachmentContext = AttachmentProcessor.processAttachments(attachments || lastUserMessageObj?.attachments);
+
+    // 2. Truncate long history while preserving multi-turn context
+    const processedMessages = StudentContextService.manageConversationHistory(messages, 14);
+
+    // 3. Minimum Necessary Student Context
     const studentContext = await StudentContextService.getRelevantContext(userId, {
       includeTasks: mode === "general" || mode === "study_plan",
       includeProjects: mode === "general" || mode === "code_review" || mode === "resume_review",
       includeSchedule: mode === "study_plan",
     });
 
-    // 2. Specialized System Prompts per Mode
-    let modePrompt = "You are StudentOS General AI Mentor. Provide clear, accurate, and direct guidance.";
+    // 4. Multi-Turn Conversational System Instructions
+    let modePrompt = `You are StudentOS Multi-Turn AI Copilot (${model}).
+CRITICAL MULTI-TURN INSTRUCTION:
+- You are in a continuous, natural multi-turn conversation with the student.
+- Understand pronouns ("it", "this", "that"), code references ("line 5", "the previous code"), and follow-up requests ("make it simpler", "give an example", "convert to Python", "question 2") seamlessly based on the prior conversation history.
+- Answer directly, accurately, and thoroughly with clear markdown tables and syntax-highlighted code blocks.`;
 
     if (mode === "explain") {
       modePrompt = `You are StudentOS Concept Explainer.
-Structured Response Format:
-1. Simple Explanation
-2. Intuition
-3. Real-world Analogy
-4. Code/Example (if applicable)
-5. Common Mistakes
-6. Quick Test Question
-7. Summary`;
+Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Real-world Analogy, 4. Code Example, 5. Common Mistakes, 6. Quick Test, 7. Summary. Maintain multi-turn memory.`;
     } else if (mode === "code_review") {
-      modePrompt = `You are StudentOS Code Reviewer.
-Analyze the user's code for:
-- Correctness & Bugs
-- Edge Cases
-- Time Complexity O(N) & Space Complexity O(1)
-- Readability & Best Practices
-- Improved Correct Code Solution`;
+      modePrompt = `You are StudentOS Code Reviewer. Analyze code for bugs, edge cases, O(N) time/space complexity, and provide corrected clean code. Maintain multi-turn memory.`;
     } else if (mode === "study_plan") {
-      modePrompt = `You are StudentOS Study Plan Builder.
-Generate a structured time-boxed study schedule based on the student's subjects and tasks. Provide daily and weekly targets.`;
+      modePrompt = `You are StudentOS Study Plan Builder. Generate structured daily & weekly timetables based on active tasks. Maintain multi-turn memory.`;
     } else if (mode === "resume_review") {
-      modePrompt = `You are StudentOS ATS Resume Reviewer.
-Analyze projects and experience for ATS optimization. Provide strong action verbs, quantifiable metrics, and bullet point rewrites.`;
+      modePrompt = `You are StudentOS ATS Resume Reviewer. Provide quantifiable bullet point rewrites and ATS formatting advice. Maintain multi-turn memory.`;
     } else if (mode === "mock_interview") {
-      modePrompt = `You are StudentOS Interactive Mock Interviewer.
-Ask one question at a time. Evaluate the student's previous answer briefly, provide constructive feedback, and then ask the next question.`;
+      modePrompt = `You are StudentOS Interactive Mock Interviewer. Ask one question at a time. Evaluate the student's previous answer briefly, provide constructive feedback, and ask the next question.`;
     } else if (mode === "quiz_gen") {
-      modePrompt = `You are StudentOS Exam Quiz Generator.
-Generate 5 multiple-choice questions with 4 options each (A, B, C, D) and explain the correct answers clearly at the end.`;
+      modePrompt = `You are StudentOS Exam Quiz Generator. Generate multiple-choice questions with 4 options (A, B, C, D) and explain correct answers at the end. Maintain multi-turn memory.`;
     }
 
-    const systemPrompt = `${modePrompt}\n\n${studentContext}`;
+    const systemPrompt = `${modePrompt}\n\n${studentContext}${attachmentContext}`;
 
-    // 3. Smart Routing & Fallback Execution
+    // 5. Smart Routing & Provider Stream
     const routed = aiRegistry.routeModel(lastUserMessage, mode, provider as ProviderName, model);
     const selectedProvider = aiRegistry.getProvider(routed.provider);
 
@@ -81,31 +77,59 @@ Generate 5 multiple-choice questions with 4 options each (A, B, C, D) and explai
       stream = await selectedProvider.stream({
         provider: routed.provider,
         model: routed.model,
-        messages,
+        messages: processedMessages,
         systemPrompt,
         apiKey,
       });
     } catch (_primaryErr) {
-      // Fallback policy: try secondary provider if primary key is missing or fails
+      // Fallback execution
       const fallbackName = routed.provider === "gemini" ? "groq" : "gemini";
       const fallbackProvider = aiRegistry.getProvider(fallbackName);
 
       stream = await fallbackProvider.stream({
         provider: fallbackName,
         model: "gemini-2.0-flash",
-        messages,
-        systemPrompt: `${systemPrompt}\n\n[Note: Fallback model response active]`,
+        messages: processedMessages,
+        systemPrompt: `${systemPrompt}\n\n[Note: Fallback response active]`,
       });
     }
 
-    // 4. Asynchronous DB Persistence & Token Usage Tracking
+    // 6. Asynchronous Database Persistence (Conversation + Messages + Usage)
     const latencyMs = Date.now() - startTime;
     (async () => {
       try {
+        let activeConvId = reqConversationId;
+
+        if (!activeConvId) {
+          // Auto-generate short title from first 6 words of first message
+          const generatedTitle = lastUserMessage.split(" ").slice(0, 5).join(" ") || "New Conversation";
+          const conv = await db.aIConversation.create({
+            data: {
+              userId,
+              title: generatedTitle,
+              selectedProvider: routed.provider,
+              selectedModel: routed.model,
+              mode,
+            },
+          });
+          activeConvId = conv.id;
+        }
+
+        // Record User Message
+        await db.aIMessage.create({
+          data: {
+            conversationId: activeConvId,
+            role: "user",
+            content: lastUserMessage,
+            attachments: attachments ? (attachments as any) : undefined,
+          },
+        });
+
+        // Record Usage
         await db.aIUsage.create({
           data: {
             userId,
-            conversationId: conversationId || null,
+            conversationId: activeConvId,
             provider: routed.provider,
             model: routed.model,
             mode,

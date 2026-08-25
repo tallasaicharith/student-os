@@ -6,11 +6,12 @@ import {
   Send, Sparkles, User, Bot, Paperclip, FileText, Trash2, Key,
   BookOpen, Code, Lightbulb, Check, Copy, Download, HelpCircle,
   Briefcase, Calendar, Terminal, FileCheck, RefreshCw, Cpu, StopCircle, RotateCcw,
-  Zap, Award, ChevronRight
+  Zap, Award, Plus, Search, Edit3, MessageSquare, PanelLeft, ThumbsUp, ThumbsDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger
 } from "@/components/ui/dialog";
@@ -24,7 +25,15 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  attachments?: { name: string; size: string }[];
+  attachments?: { name: string; size: string; content?: string }[];
+}
+
+interface ConversationItem {
+  id: string;
+  title: string;
+  updatedAt: string;
+  selectedProvider?: string;
+  selectedModel?: string;
 }
 
 type ProviderType = "gemini" | "openai" | "claude" | "groq" | "deepseek";
@@ -48,12 +57,20 @@ const AI_MODES = [
 ];
 
 export default function AIMentorPage() {
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
-  const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
+  const [files, setFiles] = useState<{ name: string; size: string; content?: string }[]>([]);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   
   const [provider, setProvider] = useState<ProviderType>("gemini");
   const [modelName, setModelName] = useState("gemini-2.0-flash");
@@ -64,45 +81,85 @@ export default function AIMentorPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 1. Fetch Saved Conversations on Load
   useEffect(() => {
-    const savedProvider = localStorage.getItem("studentos_ai_provider") as ProviderType;
-    const savedModel = localStorage.getItem("studentos_ai_model");
-    const savedChat = localStorage.getItem("studentos_chat_history");
-
-    if (savedProvider) setProvider(savedProvider);
-    if (savedModel) setModelName(savedModel);
-
-    if (savedChat) {
-      try {
-        const parsed = JSON.parse(savedChat);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-          return;
-        }
-      } catch (_e) {}
-    }
-
-    setMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: "Hello! I am your **StudentOS Multi-Model AI Copilot**. I support real-time token streaming, multi-provider model routing (Gemini, GPT-4o, Claude 3.5, DeepSeek R1), and specialized study tools. How can I assist you today?",
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    fetchConversations();
   }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem("studentos_chat_history", JSON.stringify(messages));
-    }
-  }, [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, loading, streaming]);
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch("/api/ai/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data);
+      }
+    } catch (_e) {}
+  };
+
+  const handleDeleteMessage = (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    toast.success("Message deleted");
+  };
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCodeId(id);
+    toast.success("Code copied to clipboard!");
+    setTimeout(() => setCopiedCodeId(null), 2000);
+  };
+
+  const handleNewChat = () => {
+    setActiveConvId(null);
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content: "Hello! I am your **StudentOS Multi-Model AI Copilot**. I retain full multi-turn conversational memory, support streaming answers, and understand file uploads. How can I assist you today?",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    toast.success("Started a new conversation!");
+  };
+
+  const handleSelectConversation = async (id: string) => {
+    setActiveConvId(id);
+    try {
+      const res = await fetch(`/api/ai/conversations?id=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              timestamp: m.createdAt,
+              attachments: m.attachments,
+            }))
+          );
+        }
+        if (data.selectedProvider) setProvider(data.selectedProvider as ProviderType);
+        if (data.selectedModel) setModelName(data.selectedModel);
+        if (data.mode) setSelectedMode(data.mode);
+      }
+    } catch (_e) {}
+  };
+
+  const handleDeleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetch(`/api/ai/conversations?id=${id}`, { method: "DELETE" });
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (activeConvId === id) handleNewChat();
+      toast.success("Conversation deleted");
+    } catch (_e) {}
+  };
 
   const handleStopStream = () => {
     if (abortController) {
@@ -113,52 +170,32 @@ export default function AIMentorPage() {
     }
   };
 
-  const handleClearChat = () => {
-    const defaultMsg: Message[] = [
-      {
-        id: Math.random().toString(),
-        role: "assistant",
-        content: "Chat cleared! Ask me anything about your active tasks, projects, or study plans.",
-        timestamp: new Date().toISOString(),
-      },
-    ];
-    setMessages(defaultMsg);
-    localStorage.removeItem("studentos_chat_history");
-    toast.success("All chat history cleared");
-  };
-
-  const handleDeleteMessage = (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    toast.success("Message deleted");
-  };
-
-  const handleExportChat = () => {
+  const handleRegenerate = () => {
     if (messages.length === 0) return;
-
-    const chatMarkdown = messages
-      .map(
-        (m) =>
-          `### ${m.role === "user" ? "👤 Student" : "🤖 AI Mentor"} (${new Date(m.timestamp).toLocaleTimeString()})\n\n${m.content}\n`
-      )
-      .join("\n---\n\n");
-
-    const blob = new Blob([chatMarkdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `StudentOS_AI_Mentor_Notes_${new Date().toISOString().slice(0, 10)}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success("Exported chat session to Markdown file! 📄");
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) {
+      // Remove last assistant message
+      setMessages((prev) => prev.filter((m, idx) => !(idx === prev.length - 1 && m.role === "assistant")));
+      handleSend(undefined, lastUserMsg.content);
+    }
   };
 
-  const handleCopyText = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCodeId(id);
-    toast.success("Code copied to clipboard!");
-    setTimeout(() => setCopiedCodeId(null), 2000);
+  const handleEditUserMessage = (id: string, content: string) => {
+    setEditingMsgId(id);
+    setEditingContent(content);
+  };
+
+  const handleSaveEditedMessage = (id: string) => {
+    if (!editingContent.trim()) return;
+
+    // Truncate conversation from edited message point
+    const msgIndex = messages.findIndex((m) => m.id === id);
+    if (msgIndex !== -1) {
+      const updatedMessages = messages.slice(0, msgIndex);
+      setMessages(updatedMessages);
+      setEditingMsgId(null);
+      handleSend(undefined, editingContent.trim());
+    }
   };
 
   const handleSend = async (e?: React.FormEvent, customPrompt?: string) => {
@@ -175,7 +212,7 @@ export default function AIMentorPage() {
     };
 
     const botMessageId = Math.random().toString();
-    const newMessages = [...messages, userMessage];
+    const newMessages = [...messages.filter((m) => m.id !== "welcome"), userMessage];
     setMessages(newMessages);
     setInput("");
     setFiles([]);
@@ -189,10 +226,12 @@ export default function AIMentorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments })),
           provider,
           model: modelName,
           mode: selectedMode,
+          conversationId: activeConvId,
+          attachments: userMessage.attachments,
         }),
         signal: controller.signal,
       });
@@ -227,6 +266,8 @@ export default function AIMentorPage() {
           prev.map((m) => (m.id === botMessageId ? { ...m, content: streamedContent } : m))
         );
       }
+
+      fetchConversations();
     } catch (err: unknown) {
       if ((err as Error).name !== "AbortError") {
         toast.error("Failed to connect to AI Mentor");
@@ -238,296 +279,384 @@ export default function AIMentorPage() {
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFiles = e.target.files;
+    if (!uploadedFiles) return;
+
+    Array.from(uploadedFiles).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const textContent = event.target?.result as string;
+        setFiles((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            size: `${(file.size / 1024).toFixed(1)} KB`,
+            content: textContent,
+          },
+        ]);
+      };
+      reader.readAsText(file);
+    });
+
+    toast.success("File attached and content read! 📄");
+  };
+
   const currentModelConfig = MODEL_REGISTRY[modelName];
 
+  const filteredConversations = conversations.filter((c) =>
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-6xl mx-auto space-y-3">
-      {/* Top Header & Model Capabilities Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
-            StudentOS AI Mentor Copilot
-          </h1>
-          <p className="text-xs text-muted-foreground">Multi-Model AI Platform (Google Gemini, OpenAI, Claude 3.5, DeepSeek, Groq)</p>
+    <div
+      className="flex h-[calc(100vh-8rem)] max-w-7xl mx-auto border rounded-2xl overflow-hidden shadow-sm bg-background relative"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (e.dataTransfer.files) {
+          Array.from(e.dataTransfer.files).forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              setFiles((prev) => [
+                ...prev,
+                { name: file.name, size: `${(file.size / 1024).toFixed(1)} KB`, content: ev.target?.result as string },
+              ]);
+            };
+            reader.readAsText(file);
+          });
+          toast.success("Files dropped and read!");
+        }
+      }}
+    >
+      {/* Drag & Drop Overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 bg-indigo-500/10 border-2 border-dashed border-indigo-500 z-50 flex items-center justify-center backdrop-blur-sm pointer-events-none">
+          <div className="text-center">
+            <Paperclip className="w-12 h-12 text-indigo-500 mx-auto animate-bounce" />
+            <p className="font-bold text-lg text-indigo-500 mt-2">Drop files to attach to chat</p>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-2 flex-wrap">
-          {currentModelConfig && (
-            <div className="flex items-center gap-1.5 hidden md:flex">
-              {currentModelConfig.capabilities.map((cap) => (
-                <Badge key={cap} variant={BADGE_COLORS[cap] || "outline"} className="text-[10px] font-bold">
-                  {cap}
+      )}
+
+      {/* ── Left Sidebar: Conversations Drawer ────────────────────────────────── */}
+      <div className={cn("w-64 border-r bg-muted/30 flex flex-col transition-all shrink-0", !sidebarOpen && "hidden md:flex md:w-16")}>
+        <div className="p-3 border-b flex items-center justify-between">
+          {sidebarOpen ? (
+            <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 text-xs" onClick={handleNewChat}>
+              <Plus className="w-4 h-4" /> New Chat
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={handleNewChat} title="New Chat">
+              <Plus className="w-4 h-4 text-indigo-500" />
+            </Button>
+          )}
+        </div>
+
+        {sidebarOpen && (
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 text-xs h-8"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {filteredConversations.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => handleSelectConversation(c.id)}
+              className={cn(
+                "p-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-colors group",
+                activeConvId === c.id ? "bg-indigo-500/10 text-indigo-500 font-semibold border border-indigo-500/20" : "hover:bg-muted text-foreground/80"
+              )}
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                {sidebarOpen && <span className="truncate">{c.title}</span>}
+              </div>
+              {sidebarOpen && (
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteConversation(c.id, e)}
+                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Main Chat Area ────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Top Navigation Bar */}
+        <div className="flex items-center justify-between p-3 border-b">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSidebarOpen(!sidebarOpen)}>
+              <PanelLeft className="w-4 h-4" />
+            </Button>
+            <h1 className="text-sm font-bold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              StudentOS AI Mentor Copilot
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                  <Cpu className="w-3.5 h-3.5 text-indigo-500" /> {currentModelConfig?.name || modelName}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Switch Model Architecture</DialogTitle>
+                  <DialogDescription>Switch models seamlessly without breaking conversation memory.</DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3 py-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold">Provider Engine</label>
+                    <Select value={provider} onValueChange={(val) => {
+                      const p = val as ProviderType;
+                      setProvider(p);
+                      if (p === "gemini") setModelName("gemini-2.0-flash");
+                      else if (p === "openai") setModelName("gpt-4o-mini");
+                      else if (p === "claude") setModelName("claude-3-5-sonnet-20241022");
+                      else setModelName("llama-3.3-70b-versatile");
+                    }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini">Google Gemini</SelectItem>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="claude">Anthropic Claude</SelectItem>
+                        <SelectItem value="groq">Groq / DeepSeek</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold">Model Version</label>
+                    <Select value={modelName} onValueChange={setModelName}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.values(MODEL_REGISTRY)
+                          .filter((m) => m.provider === provider)
+                          .map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button onClick={() => setKeyDialogOpen(false)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                    Apply Model
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={handleNewChat}>
+              <Plus className="w-3.5 h-3.5" /> New
+            </Button>
+          </div>
+        </div>
+
+        {/* AI Modes Toolbar */}
+        <div className="flex gap-2 overflow-x-auto p-2 border-b scrollbar-none bg-muted/10">
+          {AI_MODES.map((mode) => (
+            <Button
+              key={mode.id}
+              variant={selectedMode === mode.id ? "default" : "outline"}
+              size="sm"
+              className="text-xs rounded-xl h-7 shrink-0"
+              onClick={() => {
+                setSelectedMode(mode.id);
+                if (mode.prompt && mode.id !== "general") setInput(mode.prompt);
+              }}
+            >
+              {mode.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Messages Stream Pane */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((m) => {
+            const isAssistant = m.role === "assistant";
+            return (
+              <div key={m.id} className={cn("flex gap-3 max-w-[90%] group relative", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
+                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 mt-0.5", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
+                  {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                </div>
+
+                <div className="space-y-1 max-w-full overflow-hidden">
+                  <div className={cn("rounded-2xl p-4 text-sm border shadow-sm relative", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
+                    
+                    {/* Inline Edit Form for User Messages */}
+                    {editingMsgId === m.id ? (
+                      <div className="space-y-2">
+                        <Textarea value={editingContent} onChange={(e) => setEditingContent(e.target.value)} className="text-xs bg-background text-foreground" />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingMsgId(null)}>Cancel</Button>
+                          <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => handleSaveEditedMessage(m.id)}>Save & Resend</Button>
+                        </div>
+                      </div>
+                    ) : isAssistant ? (
+                      <FormattedMarkdown content={m.content} messageId={m.id} onCopy={handleCopyText} copiedCodeId={copiedCodeId} />
+                    ) : (
+                      <p className="whitespace-pre-wrap">{m.content}</p>
+                    )}
+
+                    {m.attachments && (
+                      <div className="mt-3 space-y-1 pt-2 border-t border-primary-foreground/20">
+                        {m.attachments.map((f, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-xs opacity-90">
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>{f.name}</span>
+                            <span className="text-[10px] opacity-70">({f.size})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message Action Bar */}
+                  <div className="flex items-center justify-between px-2 text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span>{new Date(m.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                    
+                    <div className="flex items-center gap-2">
+                      {!isAssistant && (
+                        <button type="button" onClick={() => handleEditUserMessage(m.id, m.content)} className="hover:text-primary transition-colors flex items-center gap-1">
+                          <Edit3 className="w-3 h-3" /> Edit
+                        </button>
+                      )}
+
+                      {isAssistant && (
+                        <>
+                          <button type="button" onClick={handleRegenerate} className="hover:text-indigo-500 transition-colors flex items-center gap-1" title="Regenerate answer">
+                            <RotateCcw className="w-3 h-3" /> Regenerate
+                          </button>
+                          <button type="button" onClick={() => toast.success("Feedback recorded 👍")} className="hover:text-emerald-500 transition-colors">
+                            <ThumbsUp className="w-3 h-3" />
+                          </button>
+                          <button type="button" onClick={() => toast.info("Feedback recorded 👎")} className="hover:text-destructive transition-colors">
+                            <ThumbsDown className="w-3 h-3" />
+                          </button>
+                        </>
+                      )}
+
+                      <button type="button" onClick={() => handleDeleteMessage(m.id)} className="hover:text-destructive transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {loading && (
+            <div className="flex gap-3 max-w-[80%]">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center border bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
+                <Bot className="w-4 h-4 animate-spin" />
+              </div>
+              <div className="bg-card text-card-foreground rounded-2xl p-4 text-sm border shadow-sm flex items-center gap-2">
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+              </div>
+            </div>
+          )}
+          <div ref={scrollRef} />
+        </div>
+
+        {/* Input Bar with Multiline Textarea */}
+        <div className="p-3 border-t bg-card space-y-2">
+          {streaming && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 text-destructive border-destructive/30" onClick={handleStopStream}>
+                <StopCircle className="w-3.5 h-3.5" /> ■ Stop Generating
+              </Button>
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => handleSend(e)}
+            className="border rounded-2xl p-2 bg-background shadow-inner flex flex-col gap-2"
+          >
+            <Textarea
+              placeholder="Message StudentOS AI... (Enter to send, Shift+Enter for new line)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend(e);
+                }
+              }}
+              className="border-0 focus-visible:ring-0 bg-transparent text-sm resize-none min-h-[44px] max-h-[140px]"
+            />
+
+            <div className="flex items-center justify-between pt-1 border-t border-muted/50">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".pdf,.txt,.docx,.js,.ts,.cpp,.py"
+                  onChange={handleFileUpload}
+                  multiple
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-indigo-500 text-xs gap-1 h-7"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="w-3.5 h-3.5" /> Attach
+                </Button>
+              </div>
+
+              <Button
+                type="submit"
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-7 px-3 text-xs gap-1"
+                disabled={loading || streaming || (!input.trim() && files.length === 0)}
+              >
+                <Send className="w-3.5 h-3.5" /> Send
+              </Button>
+            </div>
+          </form>
+
+          {files.length > 0 && (
+            <div className="flex gap-2 flex-wrap">
+              {files.map((f, idx) => (
+                <Badge key={idx} variant="secondary" className="flex items-center gap-1.5 py-1 text-xs">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="max-w-[140px] truncate">{f.name}</span>
+                  <button type="button" onClick={() => setFiles((prev) => prev.filter((_, i) => i !== idx))} className="text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </Badge>
               ))}
             </div>
           )}
-
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={handleExportChat}>
-            <Download className="w-3.5 h-3.5" /> Export (.md)
-          </Button>
-
-          <Button variant="ghost" size="sm" className="h-8 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={handleClearChat}>
-            <Trash2 className="w-3.5 h-3.5" /> Clear
-          </Button>
-
-          {/* Key & Model Selector Dialog */}
-          <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs bg-indigo-500/5 border-indigo-500/20 text-indigo-500 hover:bg-indigo-500/10">
-                <Cpu className="w-3.5 h-3.5" /> {currentModelConfig?.name || modelName}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-indigo-500" /> Select AI Model Architecture
-                </DialogTitle>
-                <DialogDescription>
-                  Switch between specialized AI provider models and capability tiers.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-4 py-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Provider Engine</label>
-                  <Select value={provider} onValueChange={(val) => {
-                    const p = val as ProviderType;
-                    setProvider(p);
-                    if (p === "gemini") setModelName("gemini-2.0-flash");
-                    else if (p === "openai") setModelName("gpt-4o-mini");
-                    else if (p === "claude") setModelName("claude-3-5-sonnet-20241022");
-                    else setModelName("llama-3.3-70b-versatile");
-                  }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini">Google Gemini</SelectItem>
-                      <SelectItem value="openai">OpenAI</SelectItem>
-                      <SelectItem value="claude">Anthropic Claude</SelectItem>
-                      <SelectItem value="groq">Groq / DeepSeek</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Model Version</label>
-                  <Select value={modelName} onValueChange={setModelName}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.values(MODEL_REGISTRY)
-                        .filter((m) => m.provider === provider)
-                        .map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name} ({m.speed})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {currentModelConfig && (
-                  <div className="p-3 bg-muted/40 border rounded-xl text-xs space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Reasoning Score:</span>
-                      <span className="font-bold text-indigo-500">{currentModelConfig.reasoningScore}/10</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Context Window:</span>
-                      <span className="font-mono">{(currentModelConfig.contextWindow / 1000).toFixed(0)}k tokens</span>
-                    </div>
-                    <div className="flex gap-1 pt-1">
-                      {currentModelConfig.capabilities.map((cap) => (
-                        <Badge key={cap} variant="secondary" className="text-[10px]">
-                          {cap}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <Button onClick={() => {
-                  localStorage.setItem("studentos_ai_provider", provider);
-                  localStorage.setItem("studentos_ai_model", modelName);
-                  setKeyDialogOpen(false);
-                  toast.success(`Model switched to ${modelName}`);
-                }} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
-                  <Check className="w-4 h-4" /> Apply Model Selection
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
-
-      {/* Mode Selection Toolbar */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-shrink-0">
-        {AI_MODES.map((mode) => (
-          <Button
-            key={mode.id}
-            variant={selectedMode === mode.id ? "default" : "outline"}
-            size="sm"
-            className="text-xs rounded-xl h-8 shrink-0"
-            onClick={() => {
-              setSelectedMode(mode.id);
-              if (mode.prompt && mode.id !== "general") setInput(mode.prompt);
-            }}
-          >
-            {mode.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* Context Action Quick Chips */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] text-muted-foreground">
-        <span className="shrink-0 font-semibold self-center">💡 Quick Prompts:</span>
-        <button
-          type="button"
-          onClick={() => handleSend(undefined, "What pending tasks should I focus on today based on my active tasks list?")}
-          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
-        >
-          📋 What tasks to do today?
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSend(undefined, "Analyze my active projects and suggest what milestone to build next.")}
-          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
-        >
-          🛠️ Analyze my active projects
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSend(undefined, "Build an exam study plan based on my current subjects and progress.")}
-          className="bg-muted/50 hover:bg-muted px-2.5 py-1 rounded-full border shrink-0 text-foreground transition-colors"
-        >
-          📅 Exam study plan for my subjects
-        </button>
-      </div>
-
-      {/* Message Chat Pane */}
-      <div className="flex-1 overflow-y-auto pr-2 py-3 space-y-4">
-        {messages.map((m) => {
-          const isAssistant = m.role === "assistant";
-          return (
-            <div key={m.id} className={cn("flex gap-3 max-w-[90%] group relative", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
-              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 mt-0.5", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
-                {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              </div>
-              <div className="space-y-1 max-w-full overflow-hidden">
-                <div className={cn("rounded-2xl p-4 text-sm border shadow-sm relative", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
-                  
-                  {isAssistant ? (
-                    <FormattedMarkdown content={m.content} messageId={m.id} onCopy={handleCopyText} copiedCodeId={copiedCodeId} />
-                  ) : (
-                    <p className="whitespace-pre-wrap">{m.content}</p>
-                  )}
-
-                  {m.attachments && (
-                    <div className="mt-3 space-y-1 pt-2 border-t border-primary-foreground/20">
-                      {m.attachments.map((f, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs opacity-90">
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>{f.name}</span>
-                          <span className="text-[10px] opacity-70">({f.size})</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between px-2 text-[9px] text-muted-foreground">
-                  <span>{new Date(m.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMessage(m.id)}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity px-1 flex items-center gap-1"
-                    title="Delete message"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {loading && (
-          <div className="flex gap-3 max-w-[80%]">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center border bg-indigo-500/10 text-indigo-500 border-indigo-500/20">
-              <Bot className="w-4 h-4 animate-spin-slow" />
-            </div>
-            <div className="bg-card text-card-foreground rounded-2xl p-4 text-sm border shadow-sm flex items-center gap-2">
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]" />
-            </div>
-          </div>
-        )}
-        <div ref={scrollRef} />
-      </div>
-
-      {/* Input Row & Controls */}
-      <div className="space-y-2 mt-auto">
-        {streaming && (
-          <div className="flex justify-center">
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 text-destructive border-destructive/30" onClick={handleStopStream}>
-              <StopCircle className="w-3.5 h-3.5" /> Stop Generation
-            </Button>
-          </div>
-        )}
-
-        <form onSubmit={(e) => handleSend(e)} className="p-3 bg-card border rounded-2xl flex items-center gap-2 shadow-lg">
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            accept=".pdf,.txt,.docx,.js,.ts,.cpp,.py"
-            onChange={(e) => {
-              if (e.target.files) {
-                const fl = Array.from(e.target.files).map(f => ({ name: f.name, size: `${(f.size/1024).toFixed(1)} KB` }));
-                setFiles(prev => [...prev, ...fl]);
-                toast.success("File attached!");
-              }
-            }}
-            multiple
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-indigo-500 hover:bg-indigo-500/10 rounded-xl"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Paperclip className="w-5 h-5" />
-          </Button>
-          <Input
-            placeholder="Ask any question about your tasks, projects, or study concepts..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="flex-1 border-0 focus-visible:ring-0 bg-transparent text-sm"
-          />
-          <Button
-            type="submit"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-2"
-            disabled={loading || streaming}
-          >
-            <Send className="w-4 h-4 mr-1.5" /> Send
-          </Button>
-        </form>
-      </div>
-
-      {files.length > 0 && (
-        <div className="flex gap-2 p-2 flex-wrap">
-          {files.map((f, idx) => (
-            <Badge key={idx} variant="secondary" className="flex items-center gap-1.5 py-1">
-              <FileText className="w-3.5 h-3.5" />
-              <span className="max-w-[120px] truncate">{f.name}</span>
-              <button type="button" onClick={() => setFiles(prev => prev.filter((_, i) => i !== idx))} className="text-muted-foreground hover:text-destructive">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
