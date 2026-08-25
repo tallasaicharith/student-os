@@ -11,7 +11,7 @@ import { getGreeting } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navbar() {
-  const { toggleSidebar, setCommandPaletteOpen } = useUIStore();
+  const { toggleMobileSidebar, setCommandPaletteOpen } = useUIStore();
   const { user, isLoaded } = useUser();
   const firstName = user?.firstName || "Student";
 
@@ -27,7 +27,7 @@ export function Navbar() {
         variant="ghost"
         size="icon"
         className="md:hidden"
-        onClick={toggleSidebar}
+        onClick={toggleMobileSidebar}
       >
         <Menu className="h-5 w-5" />
       </Button>
