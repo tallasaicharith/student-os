@@ -1,6 +1,7 @@
 import { Sidebar, MobileSidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 import { CommandPalette } from "@/components/command/command-palette";
+import { FloatingAIChatbot } from "@/components/shared/floating-ai-chatbot";
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
         </main>
       </div>
       <CommandPalette />
+      <FloatingAIChatbot />
     </div>
   );
 }
