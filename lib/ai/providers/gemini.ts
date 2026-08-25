@@ -18,7 +18,7 @@ export class GeminiProvider implements AIProvider {
 
   async stream(req: StreamRequest): Promise<ReadableStream<Uint8Array>> {
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model && req.model.includes("gemini") ? req.model : "gemini-2.5-flash";
+    const model = "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -33,102 +33,56 @@ export class GeminiProvider implements AIProvider {
       });
     }
 
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents }),
-      });
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents }),
+    });
 
-      if (!res.ok) {
-        // Retry with gemini-2.5-flash fallback
-        const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
-        const fallbackRes = await fetch(fallbackUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents }),
-        });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API returned status ${res.status}: ${errText}`);
+    }
 
-        if (!fallbackRes.ok) {
-          const errText = await fallbackRes.text();
-          throw new Error(`Gemini API returned ${fallbackRes.status}: ${errText}`);
-        }
+    if (!res.body) {
+      throw new Error("Gemini API returned empty response body");
+    }
 
-        if (!fallbackRes.body) throw new Error("Gemini API returned empty response body");
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const reader = res.body.getReader();
 
-        const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
-        const reader = fallbackRes.body.getReader();
+    return new ReadableStream({
+      async start(controller) {
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-        return new ReadableStream({
-          async start(controller) {
-            let buffer = "";
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split("\n");
-              buffer = lines.pop() || "";
-
-              for (const line of lines) {
-                if (line.startsWith("data: ")) {
-                  const jsonStr = line.replace("data: ", "").trim();
-                  if (!jsonStr) continue;
-                  try {
-                    const data = JSON.parse(jsonStr);
-                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text) controller.enqueue(encoder.encode(text));
-                  } catch (_e) {}
-                }
-              }
-            }
-            controller.close();
-          },
-        });
-      }
-
-      if (!res.body) {
-        throw new Error("Gemini API returned empty response body");
-      }
-
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-      const reader = res.body.getReader();
-
-      return new ReadableStream({
-        async start(controller) {
-          let buffer = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const jsonStr = line.replace("data: ", "").trim();
-                if (!jsonStr) continue;
-                try {
-                  const data = JSON.parse(jsonStr);
-                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                  if (text) controller.enqueue(encoder.encode(text));
-                } catch (_e) {}
-              }
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const jsonStr = line.replace("data: ", "").trim();
+              if (!jsonStr) continue;
+              try {
+                const data = JSON.parse(jsonStr);
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) controller.enqueue(encoder.encode(text));
+              } catch (_e) {}
             }
           }
-          controller.close();
-        },
-      });
-    } catch (err) {
-      throw sanitizeErrorMessage(err, "gemini");
-    }
+        }
+        controller.close();
+      },
+    });
   }
 
   async generate(req: StreamRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const apiKey = this.getApiKey(req.apiKey);
-    const model = req.model && req.model.includes("gemini") ? req.model : "gemini-2.5-flash";
+    const model = "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -143,29 +97,26 @@ export class GeminiProvider implements AIProvider {
       });
     }
 
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents }),
-      });
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents }),
+    });
 
-      if (!res.ok) {
-        throw new Error(`Gemini API returned status ${res.status}`);
-      }
-
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-      return {
-        content: text,
-        provider: "gemini",
-        model,
-        latencyMs: Date.now() - startTime,
-      };
-    } catch (err) {
-      throw sanitizeErrorMessage(err, "gemini");
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API returned status ${res.status}: ${errText}`);
     }
+
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    return {
+      content: text,
+      provider: "gemini",
+      model,
+      latencyMs: Date.now() - startTime,
+    };
   }
 
   async testConnection(apiKey?: string): Promise<{ success: boolean; message: string }> {
