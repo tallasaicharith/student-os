@@ -208,6 +208,7 @@ export default function AIMentorPage() {
       attachments: files.length > 0 ? [...files] : undefined,
     };
 
+    const botMessageId = Math.random().toString();
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setInput("");
@@ -228,22 +229,37 @@ export default function AIMentorPage() {
       });
 
       if (!res.ok) throw new Error("API request failed");
-      const data = await res.json();
 
-      if (data.provider) setActiveProviderName(data.provider);
-
+      // Add empty bot message bubble and turn off loading animation to start streaming text
       setMessages((prev) => [
         ...prev,
         {
-          id: Math.random().toString(),
+          id: botMessageId,
           role: "assistant",
-          content: data.reply || "No response received",
+          content: "",
           timestamp: new Date().toISOString(),
         },
       ]);
+      setLoading(false);
+
+      if (!res.body) return;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        streamedContent += text;
+
+        setMessages((prev) =>
+          prev.map((m) => (m.id === botMessageId ? { ...m, content: streamedContent } : m))
+        );
+      }
     } catch {
       toast.error("Failed to connect to AI Mentor");
-    } finally {
       setLoading(false);
     }
   };
