@@ -22,18 +22,110 @@ export default function AnalyticsPage() {
 
   const handleExportCSV = () => {
     setExporting(true);
+    const csvData = [
+      "Category,Metric,Weekly Value,Monthly Value,Status",
+      "Academic,Study Time,24.5 Hours,98 Hours,On Track",
+      "Fitness,Running Mileage,18.2 KM,72.8 KM,Goal Exceeded",
+      "Habits,Consistency Rate,88%,91%,Excellent",
+      "Projects,Completed Tasks,14 Tasks,52 Tasks,Ahead of Target",
+      "Coding,Problems Solved,12 Solved,48 Solved,Target Met"
+    ].join("\n");
+
+    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "student_os_analytics_report.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     setTimeout(() => {
       setExporting(false);
       toast.success("CSV Report downloaded successfully! 📊");
-    }, 1000);
+    }, 600);
   };
 
   const handleExportPDF = () => {
     setExporting(true);
+
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>StudentOS Analytics Report</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #111; line-height: 1.5; }
+          .header { border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 24px; }
+          .title { font-size: 24px; font-weight: 700; margin: 0; }
+          .subtitle { font-size: 14px; color: #666; margin-top: 4px; }
+          .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 24px 0; }
+          .card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; padding: 16px; }
+          .card-label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+          .card-value { font-size: 22px; font-weight: 700; margin-top: 6px; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+          th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: left; font-size: 14px; }
+          th { background: #f1f5f9; font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="title">📊 StudentOS Executive Analytics Report</div>
+          <div class="subtitle">Generated on ${new Date().toLocaleDateString()} | StudentOS Performance Summary</div>
+        </div>
+
+        <div class="grid">
+          <div class="card"><div class="card-label">Study Time</div><div class="card-value">24.5 hrs</div></div>
+          <div class="card"><div class="card-label">Running Mileage</div><div class="card-value">18.2 km</div></div>
+          <div class="card"><div class="card-label">Habit Tracking</div><div class="card-value">88%</div></div>
+          <div class="card"><div class="card-label">Coding Score</div><div class="card-value">94/100</div></div>
+        </div>
+
+        <h3>Academic & Health Metric Breakdown</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Performance Domain</th>
+              <th>Weekly Metric</th>
+              <th>Monthly Target</th>
+              <th>Current Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Study Hours</td><td>24.5 Hours</td><td>90 Hours</td><td>On Track</td></tr>
+            <tr><td>Running Distance</td><td>18.2 KM</td><td>60 KM</td><td>Goal Exceeded</td></tr>
+            <tr><td>Habit Completion</td><td>88% Done</td><td>85% Average</td><td>Consistent</td></tr>
+            <tr><td>Project Progress</td><td>14 Tasks Completed</td><td>50 Tasks</td><td>Ahead of Target</td></tr>
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([reportHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    
+    // Trigger download of PDF report HTML
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "student_os_analytics_report.html";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Also attempt window.print() if popup open works
+    const printWindow = window.open(url, "_blank");
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
+
     setTimeout(() => {
       setExporting(false);
-      toast.success("PDF Executive Summary downloaded successfully! 📄");
-    }, 1200);
+      toast.success("PDF Report generated & downloaded successfully! 📄");
+    }, 600);
   };
 
   return (

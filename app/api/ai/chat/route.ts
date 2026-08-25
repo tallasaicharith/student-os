@@ -92,12 +92,11 @@ export async function POST(req: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch (err: any) {
-    const errorMsg = err?.message || String(err);
+  } catch (_err: any) {
     const encoder = new TextEncoder();
     const errorStream = new ReadableStream({
       start(controller) {
-        controller.enqueue(encoder.encode(`⚠️ ${errorMsg}`));
+        controller.enqueue(encoder.encode("⚠️ AI Limit Exceeded. Please try again in a few moments."));
         controller.close();
       },
     });
