@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, CheckSquare, Trash2, Check } from "lucide-react";
@@ -26,6 +26,13 @@ import { taskSchema, type TaskFormValues } from "@/lib/validations/task.schema";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types";
 
+const INITIAL_LOCAL_TASKS: Task[] = [
+  { id: "seed-1", userId: "guest", title: "Wake up at 4:00 AM", category: "PERSONAL", priority: "HIGH", done: false, dueDate: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "seed-2", userId: "guest", title: "Perform Gym workout (Chest + Triceps)", category: "FITNESS", priority: "HIGH", done: false, dueDate: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "seed-3", userId: "guest", title: "Read Bhagavad Gita Chapter 2, Verse 47", category: "STUDY", priority: "MEDIUM", done: false, dueDate: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: "seed-4", userId: "guest", title: "Solve 5 LeetCode Dynamic Programming challenges", category: "PROJECT", priority: "HIGH", done: false, dueDate: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
 const PRIORITY_COLORS = { HIGH: "destructive", MEDIUM: "secondary", LOW: "outline" } as const;
 const CATEGORY_ICONS = { STUDY: "📚", PROJECT: "🛠", PERSONAL: "🙂", FITNESS: "💪" };
 const FILTERS = ["All", "STUDY", "PROJECT", "PERSONAL", "FITNESS"] as const;
@@ -34,18 +41,77 @@ export default function TasksPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<string>("All");
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+  // 1. Sync LocalStorage tasks on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("studentos_local_tasks");
+    if (saved) {
+      try {
+        setLocalTasks(JSON.parse(saved));
+      } catch (_e) {
+        setLocalTasks(INITIAL_LOCAL_TASKS);
+      }
+    } else {
+      setLocalTasks(INITIAL_LOCAL_TASKS);
+      localStorage.setItem("studentos_local_tasks", JSON.stringify(INITIAL_LOCAL_TASKS));
+    }
+  }, []);
+
+  const { data: serverTasks = [] } = useQuery<Task[]>({
     queryKey: ["tasks"],
-    queryFn: () => fetch("/api/tasks").then((r) => r.json()),
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/tasks");
+        if (!res.ok) return localTasks;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          localStorage.setItem("studentos_local_tasks", JSON.stringify(data));
+          setLocalTasks(data);
+          return data;
+        }
+        return localTasks;
+      } catch (_e) {
+        return localTasks;
+      }
+    },
   });
 
+  const displayTasks = serverTasks.length > 0 ? serverTasks : localTasks;
+
+  const saveLocalTasksState = (newTasks: Task[]) => {
+    setLocalTasks(newTasks);
+    localStorage.setItem("studentos_local_tasks", JSON.stringify(newTasks));
+    qc.setQueryData(["tasks"], newTasks);
+  };
+
   const createTask = useMutation({
-    mutationFn: (data: TaskFormValues) =>
-      fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: (newTask) => {
-      qc.setQueryData<Task[]>(["tasks"], (old) => (old ? [newTask, ...old] : [newTask]));
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+    mutationFn: async (data: TaskFormValues) => {
+      const newTask: Task = {
+        id: Math.random().toString(),
+        userId: "user",
+        title: data.title.trim(),
+        category: data.category,
+        priority: data.priority,
+        dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : new Date().toISOString(),
+        done: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updated = [newTask, ...displayTasks];
+      saveLocalTasksState(updated);
+
+      try {
+        await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      } catch (_e) {}
+      return newTask;
+    },
+    onSuccess: () => {
       toast.success("Task added! 🚀");
       setOpen(false);
       form.reset();
@@ -53,28 +119,33 @@ export default function TasksPage() {
     onError: () => toast.error("Failed to create task"),
   });
 
-  // Optimistic Toggle Mutation with zero delay
   const toggleTask = useMutation({
-    mutationFn: ({ id, done }: { id: string; done: boolean }) =>
-      fetch(`/api/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done }) }),
-    onMutate: async ({ id, done }) => {
-      await qc.cancelQueries({ queryKey: ["tasks"] });
-      const previousTasks = qc.getQueryData<Task[]>(["tasks"]);
-      if (previousTasks) {
-        qc.setQueryData<Task[]>(["tasks"], previousTasks.map((t) => (t.id === id ? { ...t, done } : t)));
-      }
-      return { previousTasks };
+    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+      const updated = displayTasks.map((t) => (t.id === id ? { ...t, done } : t));
+      saveLocalTasksState(updated);
+
+      try {
+        await fetch(`/api/tasks/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ done }),
+        });
+      } catch (_e) {}
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previousTasks) qc.setQueryData(["tasks"], context.previousTasks);
-      toast.error("Failed to update task");
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const deleteTask = useMutation({
-    mutationFn: (id: string) => fetch(`/api/tasks/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task deleted"); },
+    mutationFn: async (id: string) => {
+      const updated = displayTasks.filter((t) => t.id !== id);
+      saveLocalTasksState(updated);
+
+      try {
+        await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      } catch (_e) {}
+    },
+    onSuccess: () => {
+      toast.success("Task deleted");
+    },
   });
 
   const form = useForm<TaskFormValues>({
@@ -82,7 +153,7 @@ export default function TasksPage() {
     defaultValues: { title: "", category: "STUDY", priority: "MEDIUM" },
   });
 
-  const filtered = filter === "All" ? tasks : tasks.filter((t) => t.category === filter);
+  const filtered = filter === "All" ? displayTasks : displayTasks.filter((t) => t.category === filter);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -156,11 +227,7 @@ export default function TasksPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">{[...Array(4)].map((_, i) => (
-          <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
-        ))}</div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState icon={CheckSquare} title="No tasks found" description="Add your first task to get started!" />
       ) : (
         <motion.div className="space-y-2" layout>

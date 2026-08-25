@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "desktop": "start StudentOS-Desktop-Installer.bat",
     "lint": "eslint",
     "postinstall": "prisma generate"
   },

@@ -110,11 +110,20 @@ export default function AIMentorPage() {
   }, [messages, loading, streaming]);
 
   const fetchConversations = async () => {
+    // Load local conversations backup
+    const savedLocal = localStorage.getItem("studentos_local_conversations");
+    if (savedLocal) {
+      try { setConversations(JSON.parse(savedLocal)); } catch (_e) {}
+    }
+
     try {
       const res = await fetch("/api/ai/conversations");
       if (res.ok) {
         const data = await res.json();
-        setConversations(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setConversations(data);
+          localStorage.setItem("studentos_local_conversations", JSON.stringify(data));
+        }
       }
     } catch (_e) {}
   };
