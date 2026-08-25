@@ -263,7 +263,7 @@ export default function AIMentorPage() {
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim() && files.length === 0) return;
 
-    const keyToUse = savedApiKey || localStorage.getItem("studentos_openai_key") || localStorage.getItem("studentos_gemini_key") || "";
+    const keyToUse = localStorage.getItem("studentos_gemini_key") || "";
 
     const userMessage: Message = {
       id: Math.random().toString(),
@@ -614,7 +614,7 @@ export default function AIMentorPage() {
             className="border rounded-2xl p-2 bg-background shadow-inner flex flex-col gap-2"
           >
             <Textarea
-              placeholder="Message StudentOS OpenAI Assistant... (Enter to send, Shift+Enter for new line)"
+              placeholder="Message StudentOS AI Assistant... (Enter to send, Shift+Enter for new line)"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {

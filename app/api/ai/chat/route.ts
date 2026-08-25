@@ -48,33 +48,35 @@ export async function POST(req: NextRequest) {
       attachments,
     });
 
-    // 3. Background Async Persistence of Conversation
-    try {
-      const lastUserMsg = messages[messages.length - 1]?.content || "";
-      const title = lastUserMsg.slice(0, 40) || "New Conversation";
+    // 3. Non-blocking Background Async Persistence (never blocks AI response)
+    Promise.resolve().then(async () => {
+      try {
+        const lastUserMsg = messages[messages.length - 1]?.content || "";
+        const title = lastUserMsg.slice(0, 40) || "New Conversation";
 
-      let convId = reqConversationId;
-      if (!convId) {
-        const newConv = await db.aIConversation.create({
+        let convId = reqConversationId;
+        if (!convId) {
+          const newConv = await db.aIConversation.create({
+            data: {
+              userId,
+              title,
+              selectedProvider: "gemini",
+              selectedModel: "gemini-2.5-flash",
+              mode,
+            },
+          });
+          convId = newConv.id;
+        }
+
+        await db.aIMessage.create({
           data: {
-            userId,
-            title,
-            selectedProvider: "gemini",
-            selectedModel: "gemini-2.5-flash",
-            mode,
+            conversationId: convId,
+            role: "user",
+            content: lastUserMsg,
           },
         });
-        convId = newConv.id;
-      }
-
-      await db.aIMessage.create({
-        data: {
-          conversationId: convId,
-          role: "user",
-          content: lastUserMsg,
-        },
-      });
-    } catch (_dbSaveErr) {}
+      } catch (_dbSaveErr) {}
+    });
 
     return new Response(stream, {
       headers: {
