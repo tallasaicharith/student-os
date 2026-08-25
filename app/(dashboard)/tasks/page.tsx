@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, CheckSquare, Trash2 } from "lucide-react";
+import { Plus, CheckSquare, Trash2, Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -43,14 +43,27 @@ export default function TasksPage() {
   const createTask = useMutation({
     mutationFn: (data: TaskFormValues) =>
       fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task added!"); setOpen(false); form.reset(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["tasks"] }); toast.success("Task added! 🚀"); setOpen(false); form.reset(); },
     onError: () => toast.error("Failed to create task"),
   });
 
+  // Optimistic Toggle Mutation with zero delay
   const toggleTask = useMutation({
     mutationFn: ({ id, done }: { id: string; done: boolean }) =>
       fetch(`/api/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onMutate: async ({ id, done }) => {
+      await qc.cancelQueries({ queryKey: ["tasks"] });
+      const previousTasks = qc.getQueryData<Task[]>(["tasks"]);
+      if (previousTasks) {
+        qc.setQueryData<Task[]>(["tasks"], previousTasks.map((t) => (t.id === id ? { ...t, done } : t)));
+      }
+      return { previousTasks };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousTasks) qc.setQueryData(["tasks"], context.previousTasks);
+      toast.error("Failed to update task");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const deleteTask = useMutation({
@@ -66,20 +79,22 @@ export default function TasksPage() {
   const filtered = filter === "All" ? tasks : tasks.filter((t) => t.category === filter);
 
   return (
-    <div>
-      <PageHeader title="✅ Tasks" description="Manage your daily tasks and to-dos">
+    <div className="space-y-6 pb-12 max-w-7xl mx-auto">
+      <PageHeader title="✅ Tasks" description="Manage your daily study and project to-dos">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="w-4 h-4 mr-2" /> Add Task</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+              <Plus className="w-4 h-4" /> Add Task
+            </Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Create New Task</DialogTitle></DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit((d) => createTask.mutate(d))} className="space-y-4">
                 <FormField control={form.control} name="title" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Title</FormLabel>
-                    <FormControl><Input placeholder="What needs to be done?" {...field} /></FormControl>
+                    <FormControl><Input placeholder="e.g. Finish Operating Systems Chapter 4" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -117,7 +132,7 @@ export default function TasksPage() {
                     <FormControl><Input type="date" {...field} value={field.value ?? ""} /></FormControl>
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full" disabled={createTask.isPending}>
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={createTask.isPending}>
                   {createTask.isPending ? "Saving..." : "Save Task"}
                 </Button>
               </form>
@@ -126,11 +141,11 @@ export default function TasksPage() {
         </Dialog>
       </PageHeader>
 
-      {/* Filters */}
+      {/* Category Filters */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {FILTERS.map((f) => (
           <Button key={f} variant={filter === f ? "default" : "outline"} size="sm" onClick={() => setFilter(f)}>
-            {f === "All" ? "All" : `${CATEGORY_ICONS[f as keyof typeof CATEGORY_ICONS]} ${f}`}
+            {f === "All" ? "All Tasks" : `${CATEGORY_ICONS[f as keyof typeof CATEGORY_ICONS]} ${f}`}
           </Button>
         ))}
       </div>
@@ -140,24 +155,25 @@ export default function TasksPage() {
           <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
         ))}</div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon={CheckSquare} title="No tasks yet" description="Add your first task to get started!" />
+        <EmptyState icon={CheckSquare} title="No tasks found" description="Add your first task to get started!" />
       ) : (
         <motion.div className="space-y-2" layout>
           <AnimatePresence>
-            {[...filtered].sort((a, b) => Number(a.done) - Number(b.done)).map((task) => (
+            {filtered.map((task) => (
               <motion.div key={task.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}>
-                <Card className={cn("transition-opacity", task.done && "opacity-60")}>
+                <Card className={cn("transition-all hover:shadow-sm", task.done && "opacity-60 bg-muted/20 border-muted")}>
                   <CardContent className="p-4 flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={() => toggleTask.mutate({ id: task.id, done: !task.done })}
                       className={cn(
-                        "w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                        "w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all cursor-pointer",
                         task.done ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground hover:border-primary"
                       )}
                     >
-                      {task.done && <span className="text-xs">✓</span>}
+                      {task.done && <Check className="w-4 h-4 stroke-[3]" />}
                     </button>
-                    <span className={cn("flex-1 text-sm font-medium", task.done && "line-through text-muted-foreground")}>
+                    <span className={cn("flex-1 text-sm font-medium transition-all", task.done && "line-through text-muted-foreground")}>
                       {task.title}
                     </span>
                     <div className="flex items-center gap-2">

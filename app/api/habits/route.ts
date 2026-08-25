@@ -4,14 +4,17 @@ import { db, getOrCreateUser } from "@/lib/db";
 export async function GET() {
   try {
     const userId = await getOrCreateUser();
-    const today = new Date().toISOString().slice(0, 10);
+
+    const now = new Date();
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
     const habits = await db.habit.findMany({
       where: { userId },
       orderBy: { order: "asc" },
       include: {
         logs: {
-          where: { date: { gte: new Date(today), lte: new Date(today + "T23:59:59Z") } },
+          where: { date: { gte: startOfToday, lte: endOfToday } },
         },
       },
     });
@@ -19,6 +22,32 @@ export async function GET() {
     return NextResponse.json(habits);
   } catch {
     return NextResponse.json(DEFAULT_HABITS);
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const userId = await getOrCreateUser();
+    const { name, emoji = "⚡" } = await req.json();
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    const count = await db.habit.count({ where: { userId } });
+    const habit = await db.habit.create({
+      data: {
+        userId,
+        name: name.trim(),
+        emoji: emoji.trim() || "⚡",
+        order: count,
+      },
+      include: { logs: true },
+    });
+
+    return NextResponse.json(habit);
+  } catch {
+    return NextResponse.json({ error: "Failed to create habit" }, { status: 500 });
   }
 }
 
