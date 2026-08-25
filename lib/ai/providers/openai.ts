@@ -5,7 +5,11 @@ export class OpenAIProvider implements AIProvider {
   name = "openai" as const;
 
   private getApiKey(reqKey?: string): string {
-    const key = reqKey || process.env.OPENAI_API_KEY;
+    const envKey = process.env.OPENAI_API_KEY;
+    let key = reqKey;
+    if (!key || !key.startsWith("sk-") || key.trim().length === 0) {
+      key = envKey;
+    }
     if (!key || key.trim().length === 0) {
       throw new Error("OpenAI API key is missing. Add OPENAI_API_KEY in .env or Settings.");
     }
