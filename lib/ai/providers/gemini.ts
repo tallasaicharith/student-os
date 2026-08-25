@@ -1,5 +1,4 @@
 import { AIProvider, AIResponse, StreamRequest } from "../types";
-import { sanitizeErrorMessage } from "../security";
 
 export class GeminiProvider implements AIProvider {
   name = "gemini" as const;
@@ -8,21 +7,34 @@ export class GeminiProvider implements AIProvider {
     const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     let key = reqKey;
     
-    // Ignore OpenAI sk- keys or empty inputs
+    // If request key is missing, empty, or starts with OpenAI's sk- prefix, fallback to environment variable
     if (!key || key.startsWith("sk-") || key.trim().length === 0) {
       key = envKey;
     }
 
     if (!key || key.trim().length === 0) {
-      throw new Error("Google Gemini API key is missing. Get a free key starting with AIzaSy... at https://aistudio.google.com/app/apikey");
+      throw new Error("Gemini API key is not configured. Add GEMINI_API_KEY to your server environment.");
     }
 
     return key.trim();
   }
 
+  private parseError(status: number, errText: string): Error {
+    if (status === 401 || status === 403 || errText.includes("API_KEY_INVALID") || errText.includes("UNAUTHENTICATED")) {
+      return new Error("Invalid Gemini API key. Please verify your GEMINI_API_KEY in server configuration.");
+    }
+    if (status === 404 || errText.includes("NOT_FOUND")) {
+      return new Error("Configured Gemini model is unavailable or non-existent.");
+    }
+    if (status === 429 || errText.includes("RESOURCE_EXHAUSTED")) {
+      return new Error("Gemini API rate limit exceeded. Please try again in a few moments.");
+    }
+    return new Error(`Gemini API error (${status}): ${errText}`);
+  }
+
   async stream(req: StreamRequest): Promise<ReadableStream<Uint8Array>> {
     const apiKey = this.getApiKey(req.apiKey);
-    const model = "gemini-2.5-flash";
+    const model = req.model && req.model !== "gpt-4o-mini" ? req.model : "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -49,7 +61,7 @@ export class GeminiProvider implements AIProvider {
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Gemini API returned status ${res.status}: ${errText}`);
+      throw this.parseError(res.status, errText);
     }
 
     if (!res.body) {
@@ -90,7 +102,7 @@ export class GeminiProvider implements AIProvider {
   async generate(req: StreamRequest): Promise<AIResponse> {
     const startTime = Date.now();
     const apiKey = this.getApiKey(req.apiKey);
-    const model = "gemini-2.5-flash";
+    const model = req.model && req.model !== "gpt-4o-mini" ? req.model : "gemini-2.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const contents = req.messages.map((m) => ({
@@ -117,7 +129,7 @@ export class GeminiProvider implements AIProvider {
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Gemini API returned status ${res.status}: ${errText}`);
+      throw this.parseError(res.status, errText);
     }
 
     const data = await res.json();

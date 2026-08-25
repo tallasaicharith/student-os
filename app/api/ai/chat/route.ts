@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    // 1. Enforce Server Environment Active Gemini API Key (Overrides stale browser localStorage)
+    // 1. Enforce Server Environment Active Gemini API Key (GEMINI_API_KEY || GOOGLE_API_KEY)
     const envApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
     let resolvedApiKey = envApiKey;
 
@@ -94,33 +94,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     const errorMsg = err?.message || String(err);
-    const lastUserMsg = reqMessages.length > 0 ? reqMessages[reqMessages.length - 1]?.content : "";
-    let friendlyResponse = "";
-
-    if (errorMsg.includes("401") || errorMsg.includes("UNAUTHENTICATED")) {
-      friendlyResponse = [
-        "🔑 **Google AI Studio Key Required**",
-        "",
-        "Please provide a valid API key from [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).",
-        "",
-        "---",
-        "Hello! I am your **StudentOS Academic Copilot**. Regarding your prompt:",
-        `> "${lastUserMsg || "General Question"}"`,
-        "",
-        "How can I assist you with your tasks, study schedule, or project code today?"
-      ].join("\n");
-    } else {
-      friendlyResponse = [
-        "Hello! I am your **StudentOS Academic Copilot**.",
-        "",
-        "How can I assist you with your tasks, study schedule, or project code today?"
-      ].join("\n");
-    }
-
     const encoder = new TextEncoder();
     const errorStream = new ReadableStream({
       start(controller) {
-        controller.enqueue(encoder.encode(friendlyResponse));
+        controller.enqueue(encoder.encode(`⚠️ ${errorMsg}`));
         controller.close();
       },
     });
