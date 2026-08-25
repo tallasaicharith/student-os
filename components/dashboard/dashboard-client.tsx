@@ -35,8 +35,8 @@ interface DashboardProps {
 }
 
 export function DashboardClient({ userId }: DashboardProps) {
-  const [xp, setXp] = useState(0);
-  const [level, setLevel] = useState(1);
+  const [xp, setXp] = useState(780);
+  const [level, setLevel] = useState(4);
 
   // Queries
   const { data: tasks = [] } = useQuery({
@@ -144,17 +144,17 @@ export function DashboardClient({ userId }: DashboardProps) {
                 </div>
                 <div className="flex gap-4 mt-4 w-full justify-around text-center text-xs border-t pt-4">
                   <div>
-                    <span className="block font-bold text-base text-blue-500">0h</span>
+                    <span className="block font-bold text-base text-blue-500">4.5h</span>
                     <span className="text-muted-foreground">Study Time</span>
                   </div>
                   <div className="border-r" />
                   <div>
-                    <span className="block font-bold text-base text-purple-500">0m</span>
+                    <span className="block font-bold text-base text-purple-500">2.5h</span>
                     <span className="text-muted-foreground">Coding</span>
                   </div>
                   <div className="border-r" />
                   <div>
-                    <span className="block font-bold text-base text-emerald-500">0.0K</span>
+                    <span className="block font-bold text-base text-emerald-500">5.2K</span>
                     <span className="text-muted-foreground">Running</span>
                   </div>
                 </div>
@@ -309,9 +309,9 @@ export function DashboardClient({ userId }: DashboardProps) {
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="text-muted-foreground">Average Attendance</span>
-                      <span className="text-emerald-500">0%</span>
+                      <span className="text-emerald-500">88%</span>
                     </div>
-                    <Progress value={0} className="h-1.5 bg-emerald-500/10" />
+                    <Progress value={88} className="h-1.5 bg-emerald-500/10" />
                     <p className="text-[10px] text-muted-foreground">Min. 75% required for exams</p>
                   </div>
                   
@@ -319,10 +319,10 @@ export function DashboardClient({ userId }: DashboardProps) {
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="text-muted-foreground">Cumulative GPA Goal</span>
-                      <span className="text-indigo-500">0.0 / 10</span>
+                      <span className="text-indigo-500">9.2 / 10</span>
                     </div>
-                    <Progress value={0} className="h-1.5 bg-indigo-500/10" />
-                    <p className="text-[10px] text-muted-foreground">Set your target in settings</p>
+                    <Progress value={92} className="h-1.5 bg-indigo-500/10" />
+                    <p className="text-[10px] text-muted-foreground font-semibold text-emerald-500">Target Achieved</p>
                   </div>
 
                   {/* Achievements Checklist */}
@@ -412,13 +412,17 @@ function RotateCcwIcon(props: React.SVGProps<SVGSVGElement>) {
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 const MOCK_ANALYTICS = [
-  { day: "Mon", study: 0.0, coding: 0.0 },
-  { day: "Tue", study: 0.0, coding: 0.0 },
-  { day: "Wed", study: 0.0, coding: 0.0 },
-  { day: "Thu", study: 0.0, coding: 0.0 },
-  { day: "Fri", study: 0.0, coding: 0.0 },
-  { day: "Sat", study: 0.0, coding: 0.0 },
-  { day: "Sun", study: 0.0, coding: 0.0 }
+  { day: "Mon", study: 3.5, coding: 2.0 },
+  { day: "Tue", study: 4.0, coding: 3.0 },
+  { day: "Wed", study: 3.0, coding: 2.5 },
+  { day: "Thu", study: 5.0, coding: 3.5 },
+  { day: "Fri", study: 4.5, coding: 4.0 },
+  { day: "Sat", study: 6.0, coding: 2.0 },
+  { day: "Sun", study: 3.5, coding: 1.5 }
 ];
 
-const DELIVERABLES: any[] = [];
+const DELIVERABLES: any[] = [
+  { id: "d1", subject: "MA113", title: "Linear Algebra Eigenvalues Problem Set", due: "Tomorrow, 11:59 PM", urgency: "Immediate" },
+  { id: "d2", subject: "CS201", title: "Data Structures Red-Black Tree Implementation", due: "Friday, 5:00 PM", urgency: "Normal" },
+  { id: "d3", subject: "CS204", title: "Operating Systems System Calls Lab", due: "Sunday, 11:59 PM", urgency: "Normal" }
+];
