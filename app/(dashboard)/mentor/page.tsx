@@ -34,7 +34,7 @@ const MODEL_OPTIONS: Record<ProviderType, { id: string; name: string }[]> = {
     { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Fast)" },
   ],
   openai: [
-    { id: "gpt-4o", name: "GPT-4o (Omni Flags)" },
+    { id: "gpt-4o", name: "GPT-4o (Omniscience)" },
     { id: "gpt-4o-mini", name: "GPT-4o Mini (Efficient)" },
     { id: "o3-mini", name: "o3-mini (STEM & Code Reasoning)" },
     { id: "gpt-4-turbo", name: "GPT-4 Turbo" },
@@ -81,7 +81,6 @@ export default function AIMentorPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load persistent state from localStorage
   useEffect(() => {
     const savedKey = localStorage.getItem("studentos_ai_key");
     const savedProvider = localStorage.getItem("studentos_ai_provider") as ProviderType;
@@ -106,13 +105,12 @@ export default function AIMentorPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Hello! I am your **StudentOS AI Mentor Copilot**. You can switch model versions anytime (e.g. **Gemini 2.0 Flash**, **Gemini 1.5 Pro**, **GPT-4o**, **Claude 3.5 Sonnet**, **DeepSeek R1**, **Llama 3.3 70B**). I am connected to your live database profile. How can I help you today?",
+        content: "Hello! I am your **StudentOS AI Mentor Copilot**. I support ChatGPT-style markdown tables, code syntax highlighting, and real-time streaming answers. How can I help you today?",
         timestamp: new Date().toISOString(),
       },
     ]);
   }, []);
 
-  // Save chat to localStorage on change
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem("studentos_chat_history", JSON.stringify(messages));
@@ -230,7 +228,6 @@ export default function AIMentorPage() {
 
       if (!res.ok) throw new Error("API request failed");
 
-      // Add empty bot message bubble and turn off loading animation to start streaming text
       setMessages((prev) => [
         ...prev,
         {
@@ -286,7 +283,7 @@ export default function AIMentorPage() {
             <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
             StudentOS AI Mentor Copilot
           </h1>
-          <p className="text-xs text-muted-foreground">Select AI Models (Gemini 2.0, GPT-4o, Claude 3.5, DeepSeek R1, Llama 3.3)</p>
+          <p className="text-xs text-muted-foreground">ChatGPT-Grade Real-Time AI Copilot (Gemini 2.0, GPT-4o, Claude 3.5, DeepSeek R1, Llama 3.3)</p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">
@@ -430,43 +427,19 @@ export default function AIMentorPage() {
         {messages.map((m) => {
           const isAssistant = m.role === "assistant";
           return (
-            <div key={m.id} className={cn("flex gap-3 max-w-[88%]", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
+            <div key={m.id} className={cn("flex gap-3 max-w-[90%] group relative", isAssistant ? "self-start" : "self-end ml-auto flex-row-reverse")}>
               <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border flex-shrink-0 mt-0.5", isAssistant ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" : "bg-primary/10 text-primary")}>
                 {isAssistant ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
               </div>
-              <div className="space-y-1">
-                <div className={cn("rounded-2xl p-4 text-sm leading-relaxed border shadow-sm relative group", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
-                  {m.content.split("\n\n").map((para, i) => {
-                    if (para.startsWith("###")) {
-                      return <h3 key={i} className="font-bold text-base mt-2 mb-1 border-b pb-1">{para.replace("###", "")}</h3>;
-                    }
-                    if (para.startsWith("```")) {
-                      const codeLines = para.replaceAll("```", "").split("\n").filter(Boolean);
-                      const lang = codeLines[0];
-                      const codeText = codeLines.slice(1).join("\n");
-                      const blockId = `${m.id}-${i}`;
-
-                      return (
-                        <div key={i} className="relative my-3 rounded-lg overflow-hidden border bg-slate-950 text-slate-100">
-                          <div className="flex justify-between items-center px-3 py-1.5 bg-slate-900 border-b border-slate-800 text-[11px] font-mono text-slate-400">
-                            <span>{lang || "code"}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyText(codeText || lang, blockId)}
-                              className="flex items-center gap-1 hover:text-white transition-colors"
-                            >
-                              {copiedCodeId === blockId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                              <span>{copiedCodeId === blockId ? "Copied" : "Copy"}</span>
-                            </button>
-                          </div>
-                          <pre className="p-3.5 text-xs font-mono overflow-x-auto">
-                            <code>{codeText || lang}</code>
-                          </pre>
-                        </div>
-                      );
-                    }
-                    return <p key={i} className="mb-2 last:mb-0">{para}</p>;
-                  })}
+              <div className="space-y-1 max-w-full overflow-hidden">
+                <div className={cn("rounded-2xl p-4 text-sm border shadow-sm relative", isAssistant ? "bg-card text-card-foreground" : "bg-primary text-primary-foreground border-transparent")}>
+                  
+                  {/* ChatGPT-Grade Rich Markdown Renderer */}
+                  {isAssistant ? (
+                    <FormattedMarkdown content={m.content} messageId={m.id} onCopy={handleCopyText} copiedCodeId={copiedCodeId} />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{m.content}</p>
+                  )}
 
                   {m.attachments && (
                     <div className="mt-3 space-y-1 pt-2 border-t border-primary-foreground/20">
@@ -480,6 +453,7 @@ export default function AIMentorPage() {
                     </div>
                   )}
                 </div>
+
                 <div className="flex items-center justify-between px-2 text-[9px] text-muted-foreground">
                   <span>{new Date(m.timestamp).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
                   <button
@@ -558,6 +532,162 @@ export default function AIMentorPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function FormattedMarkdown({ content, messageId, onCopy, copiedCodeId }: {
+  content: string;
+  messageId: string;
+  onCopy: (text: string, id: string) => void;
+  copiedCodeId: string | null;
+}) {
+  if (!content) return null;
+
+  // Split by code blocks first
+  const codeBlockRegex = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g;
+  const parts: { type: "code" | "markdown"; content: string; lang?: string }[] = [];
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: "markdown", content: content.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: "code", lang: match[1] || "code", content: match[2] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push({ type: "markdown", content: content.slice(lastIndex) });
+  }
+
+  return (
+    <div className="space-y-3 text-sm leading-relaxed">
+      {parts.map((part, pIdx) => {
+        if (part.type === "code") {
+          const blockId = `${messageId}-code-${pIdx}`;
+          return (
+            <div key={pIdx} className="my-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 text-slate-100 shadow-md">
+              <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-b border-slate-800 text-xs font-mono text-slate-400">
+                <span className="font-semibold text-indigo-400">{part.lang}</span>
+                <button
+                  type="button"
+                  onClick={() => onCopy(part.content, blockId)}
+                  className="flex items-center gap-1.5 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 px-2.5 py-1 rounded-md text-[11px]"
+                >
+                  {copiedCodeId === blockId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCodeId === blockId ? "Copied" : "Copy Code"}</span>
+                </button>
+              </div>
+              <pre className="p-4 text-xs font-mono overflow-x-auto whitespace-pre leading-normal text-slate-200">
+                <code>{part.content}</code>
+              </pre>
+            </div>
+          );
+        }
+
+        const lines = part.content.split("\n");
+        const renderedBlocks: React.ReactNode[] = [];
+        let inTable = false;
+        let tableRows: string[][] = [];
+
+        lines.forEach((line, lIdx) => {
+          const trimmed = line.trim();
+
+          // Table detection
+          if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+            if (!inTable) {
+              inTable = true;
+              tableRows = [];
+            }
+            if (!trimmed.includes(":---") && !trimmed.includes("---")) {
+              const cells = trimmed.split("|").slice(1, -1).map(c => c.trim());
+              tableRows.push(cells);
+            }
+            return;
+          } else if (inTable) {
+            inTable = false;
+            if (tableRows.length > 0) {
+              const headers = tableRows[0];
+              const body = tableRows.slice(1);
+              renderedBlocks.push(
+                <div key={`table-${lIdx}`} className="overflow-x-auto my-3 border rounded-xl shadow-sm bg-card">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-muted/80 border-b">
+                        {headers.map((h, hIdx) => (
+                          <th key={hIdx} className="p-2.5 text-left font-bold border-r last:border-r-0">{h.replaceAll("**", "")}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {body.map((row, rIdx) => (
+                        <tr key={rIdx} className="border-b last:border-b-0 hover:bg-muted/30">
+                          {row.map((cell, cIdx) => (
+                            <td key={cIdx} className="p-2.5 border-r last:border-r-0">{cell.replaceAll("**", "")}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+              tableRows = [];
+            }
+          }
+
+          if (trimmed.startsWith("###")) {
+            renderedBlocks.push(<h3 key={lIdx} className="font-bold text-base mt-3 mb-1 text-foreground border-b pb-1">{trimmed.replace("###", "").trim()}</h3>);
+          } else if (trimmed.startsWith("##")) {
+            renderedBlocks.push(<h2 key={lIdx} className="font-bold text-lg mt-4 mb-2 text-foreground border-b pb-1">{trimmed.replace("##", "").trim()}</h2>);
+          } else if (trimmed.startsWith("#")) {
+            renderedBlocks.push(<h1 key={lIdx} className="font-extrabold text-xl mt-4 mb-2 text-foreground">{trimmed.replace("#", "").trim()}</h1>);
+          } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            renderedBlocks.push(
+              <li key={lIdx} className="ml-4 list-disc text-sm text-foreground/90 my-1">
+                {trimmed.slice(2)}
+              </li>
+            );
+          } else if (trimmed) {
+            renderedBlocks.push(
+              <p key={lIdx} className="my-1.5 leading-relaxed text-foreground/90">
+                {trimmed}
+              </p>
+            );
+          }
+        });
+
+        if (inTable && tableRows.length > 0) {
+          const headers = tableRows[0];
+          const body = tableRows.slice(1);
+          renderedBlocks.push(
+            <div key={`table-end`} className="overflow-x-auto my-3 border rounded-xl shadow-sm bg-card">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-muted/80 border-b">
+                    {headers.map((h, hIdx) => (
+                      <th key={hIdx} className="p-2.5 text-left font-bold border-r last:border-r-0">{h.replaceAll("**", "")}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {body.map((row, rIdx) => (
+                    <tr key={rIdx} className="border-b last:border-b-0 hover:bg-muted/30">
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="p-2.5 border-r last:border-r-0">{cell.replaceAll("**", "")}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        return <div key={pIdx}>{renderedBlocks}</div>;
+      })}
     </div>
   );
 }
