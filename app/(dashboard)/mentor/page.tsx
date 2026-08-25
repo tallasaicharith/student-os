@@ -38,14 +38,6 @@ interface ConversationItem {
 
 type ProviderType = "gemini" | "openai" | "claude" | "groq" | "deepseek";
 
-const BADGE_COLORS: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-  FAST: "secondary",
-  BALANCED: "outline",
-  POWERFUL: "default",
-  REASONING: "destructive",
-  VISION: "secondary",
-};
-
 const AI_MODES = [
   { id: "general", label: "💬 General AI", icon: Sparkles, prompt: "What pending tasks should I focus on today based on my StudentOS goals?" },
   { id: "explain", label: "🎓 Concept Explainer", icon: Lightbulb, prompt: "Explain the difference between Dynamic Programming and Greedy Algorithms with real-world code examples." },
@@ -76,24 +68,35 @@ export default function AIMentorPage() {
   const [modelName, setModelName] = useState("gemini-2.0-flash");
   const [selectedMode, setSelectedMode] = useState("general");
   const [keyDialogOpen, setKeyDialogOpen] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+
+  const [savedApiKey, setSavedApiKey] = useState<string>("");
+  const [tempApiKeyInput, setTempApiKeyInput] = useState<string>("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [savedApiKey, setSavedApiKey] = useState<string>("");
-
-  // 1. Fetch Saved Conversations & AI Settings on Load
+  // 1. Load Saved Key & Conversations on Mount
   useEffect(() => {
     fetchConversations();
-    // Load local storage key
+    
+    // Priority 1: Check localStorage
     const localKey = localStorage.getItem("studentos_gemini_key");
-    if (localKey) setSavedApiKey(localKey);
+    if (localKey && localKey.trim()) {
+      setSavedApiKey(localKey.trim());
+      setTempApiKeyInput(localKey.trim());
+    }
 
-    // Load server settings
+    // Priority 2: Fetch Server Settings
     fetch("/api/ai/settings")
       .then((r) => r.json())
       .then((data) => {
+        if (data.rawKeys && data.rawKeys.gemini) {
+          setSavedApiKey(data.rawKeys.gemini);
+          setTempApiKeyInput(data.rawKeys.gemini);
+          localStorage.setItem("studentos_gemini_key", data.rawKeys.gemini);
+        }
         if (data.defaultProvider) setProvider(data.defaultProvider as ProviderType);
         if (data.defaultModel) setModelName(data.defaultModel);
       })
@@ -114,6 +117,29 @@ export default function AIMentorPage() {
         setConversations(data);
       }
     } catch (_e) {}
+  };
+
+  const handleSaveApiKey = async () => {
+    if (!tempApiKeyInput.trim()) {
+      toast.error("Please enter a valid API Key");
+      return;
+    }
+    const cleanKey = tempApiKeyInput.trim();
+    setSavedApiKey(cleanKey);
+    localStorage.setItem("studentos_gemini_key", cleanKey);
+
+    try {
+      await fetch("/api/ai/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geminiKey: cleanKey }),
+      });
+      toast.success("API Key saved permanently! 🔒");
+      setApiKeyModalOpen(false);
+    } catch (_e) {
+      toast.success("API Key saved locally!");
+      setApiKeyModalOpen(false);
+    }
   };
 
   const handleDeleteMessage = (id: string) => {
@@ -188,7 +214,6 @@ export default function AIMentorPage() {
     if (messages.length === 0) return;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
     if (lastUserMsg) {
-      // Remove last assistant message
       setMessages((prev) => prev.filter((m, idx) => !(idx === prev.length - 1 && m.role === "assistant")));
       handleSend(undefined, lastUserMsg.content);
     }
@@ -202,7 +227,6 @@ export default function AIMentorPage() {
   const handleSaveEditedMessage = (id: string) => {
     if (!editingContent.trim()) return;
 
-    // Truncate conversation from edited message point
     const msgIndex = messages.findIndex((m) => m.id === id);
     if (msgIndex !== -1) {
       const updatedMessages = messages.slice(0, msgIndex);
@@ -216,6 +240,8 @@ export default function AIMentorPage() {
     if (e) e.preventDefault();
     const promptToSend = customPrompt || input;
     if (!promptToSend.trim() && files.length === 0) return;
+
+    const keyToUse = savedApiKey || localStorage.getItem("studentos_gemini_key") || "";
 
     const userMessage: Message = {
       id: Math.random().toString(),
@@ -241,6 +267,7 @@ export default function AIMentorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments })),
+          apiKey: keyToUse,
           provider,
           model: modelName,
           mode: selectedMode,
@@ -426,6 +453,36 @@ export default function AIMentorPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Modal for setting API key right in Chat window */}
+            <Dialog open={apiKeyModalOpen} onOpenChange={setApiKeyModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant={savedApiKey ? "outline" : "default"} size="sm" className={cn("h-7 text-xs gap-1", !savedApiKey && "bg-amber-500 hover:bg-amber-600 text-white")}>
+                  <Key className="w-3.5 h-3.5" /> {savedApiKey ? "🔑 Key Saved" : "Set API Key"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-sm font-bold">
+                    <Key className="w-4 h-4 text-indigo-500" /> Set API Key
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                    Paste your Google AI Studio key (`AIza...`). It will be saved permanently in your database & browser so you never have to re-enter it!
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <Input
+                    type="password"
+                    placeholder="Paste Google AI Studio Key (starts with AIza...)"
+                    value={tempApiKeyInput}
+                    onChange={(e) => setTempApiKeyInput(e.target.value)}
+                  />
+                  <Button onClick={handleSaveApiKey} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                    Save Key Permanently
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={keyDialogOpen} onOpenChange={setKeyDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
