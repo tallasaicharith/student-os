@@ -17,10 +17,6 @@ export class GeminiProvider implements AIProvider {
       throw new Error("Google Gemini API key is missing. Get a free key starting with AIzaSy... at https://aistudio.google.com/app/apikey");
     }
 
-    if (key.startsWith("AQ.")) {
-      throw new Error("You entered a Google Cloud session token ('AQ...'). Google AI Studio requires an API Key starting with 'AIzaSy...' from https://aistudio.google.com/app/apikey");
-    }
-
     return key.trim();
   }
 
