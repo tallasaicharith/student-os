@@ -482,7 +482,16 @@ export default function AIMentorPage() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={handleNewChat}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-destructive" onClick={() => {
+              if (activeConvId) {
+                handleDeleteConversation(activeConvId, { stopPropagation: () => {} } as any);
+              } else {
+                handleNewChat();
+              }
+            }}>
+              <Trash2 className="w-3.5 h-3.5 text-destructive" /> Clear Chat
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground hover:text-indigo-500" onClick={handleNewChat}>
               <Plus className="w-3.5 h-3.5" /> New
             </Button>
           </div>

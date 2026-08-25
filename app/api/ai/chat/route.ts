@@ -28,22 +28,33 @@ export async function POST(req: NextRequest) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    // 1. Automatically Resolve Saved API Key from Database if Not Passed in Body
+    // 1. Multi-Tier Key Resolution Engine (Request -> User DB -> Global DB -> Process ENV)
     let resolvedApiKey = reqApiKey ? String(reqApiKey).trim() : "";
 
-    if (!resolvedApiKey && userId !== "guest") {
+    if (!resolvedApiKey) {
       try {
-        const config = await db.aIProviderConfig.findUnique({ where: { userId } });
-        if (config) {
-          if (provider === "gemini" && config.geminiKey) resolvedApiKey = config.geminiKey;
-          else if (provider === "openai" && config.openaiKey) resolvedApiKey = config.openaiKey;
-          else if (provider === "claude" && config.anthropicKey) resolvedApiKey = config.anthropicKey;
-          else if (provider === "groq" && config.groqKey) resolvedApiKey = config.groqKey;
+        const userConfig = await db.aIProviderConfig.findUnique({ where: { userId } });
+        if (userConfig) {
+          if (provider === "gemini" && userConfig.geminiKey) resolvedApiKey = userConfig.geminiKey;
+          else if (provider === "openai" && userConfig.openaiKey) resolvedApiKey = userConfig.openaiKey;
+          else if (provider === "claude" && userConfig.anthropicKey) resolvedApiKey = userConfig.anthropicKey;
+          else if (provider === "groq" && userConfig.groqKey) resolvedApiKey = userConfig.groqKey;
+        }
+
+        // Global fallback DB lookup across all records
+        if (!resolvedApiKey) {
+          const globalConfig = await db.aIProviderConfig.findFirst({
+            where: { geminiKey: { not: null } },
+            orderBy: { updatedAt: "desc" },
+          });
+          if (globalConfig && globalConfig.geminiKey) {
+            resolvedApiKey = globalConfig.geminiKey;
+          }
         }
       } catch (_dbErr) {}
     }
 
-    // Fallback to process.env if available
+    // Environment Fallback
     if (!resolvedApiKey) {
       if (provider === "gemini") resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
       else if (provider === "openai") resolvedApiKey = process.env.OPENAI_API_KEY || "";

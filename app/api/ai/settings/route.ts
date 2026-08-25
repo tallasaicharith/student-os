@@ -9,9 +9,19 @@ export async function GET() {
     let config = await db.aIProviderConfig.findUnique({ where: { userId } });
 
     if (!config) {
-      config = await db.aIProviderConfig.create({
-        data: { userId },
+      // Check if there is any existing config in DB to reuse
+      const globalConfig = await db.aIProviderConfig.findFirst({
+        where: { geminiKey: { not: null } },
+        orderBy: { updatedAt: "desc" },
       });
+
+      if (globalConfig) {
+        config = globalConfig;
+      } else {
+        config = await db.aIProviderConfig.create({
+          data: { userId },
+        });
+      }
     }
 
     return NextResponse.json({
@@ -20,6 +30,12 @@ export async function GET() {
       defaultModel: config.defaultModel,
       autoRouting: config.autoRouting,
       streaming: config.streaming,
+      rawKeys: {
+        gemini: config.geminiKey || "",
+        openai: config.openaiKey || "",
+        claude: config.anthropicKey || "",
+        groq: config.groqKey || "",
+      },
       maskedKeys: {
         gemini: maskApiKey(config.geminiKey || process.env.GEMINI_API_KEY),
         openai: maskApiKey(config.openaiKey || process.env.OPENAI_API_KEY),
@@ -33,6 +49,7 @@ export async function GET() {
       defaultModel: "gemini-2.0-flash",
       autoRouting: true,
       streaming: true,
+      rawKeys: { gemini: "", openai: "", claude: "", groq: "" },
       maskedKeys: {
         gemini: maskApiKey(process.env.GEMINI_API_KEY),
         openai: maskApiKey(process.env.OPENAI_API_KEY),
@@ -65,10 +82,19 @@ export async function POST(req: NextRequest) {
       streaming,
     };
 
-    if (geminiKey !== undefined) dataToUpdate.geminiKey = geminiKey.trim() || null;
-    if (openaiKey !== undefined) dataToUpdate.openaiKey = openaiKey.trim() || null;
-    if (anthropicKey !== undefined) dataToUpdate.anthropicKey = anthropicKey.trim() || null;
-    if (groqKey !== undefined) dataToUpdate.groqKey = groqKey.trim() || null;
+    // ONLY update keys if a non-empty string is explicitly provided
+    if (geminiKey && typeof geminiKey === "string" && geminiKey.trim().length > 0) {
+      dataToUpdate.geminiKey = geminiKey.trim();
+    }
+    if (openaiKey && typeof openaiKey === "string" && openaiKey.trim().length > 0) {
+      dataToUpdate.openaiKey = openaiKey.trim();
+    }
+    if (anthropicKey && typeof anthropicKey === "string" && anthropicKey.trim().length > 0) {
+      dataToUpdate.anthropicKey = anthropicKey.trim();
+    }
+    if (groqKey && typeof groqKey === "string" && groqKey.trim().length > 0) {
+      dataToUpdate.groqKey = groqKey.trim();
+    }
 
     const config = await db.aIProviderConfig.upsert({
       where: { userId },
@@ -83,6 +109,12 @@ export async function POST(req: NextRequest) {
       success: true,
       defaultProvider: config.defaultProvider,
       defaultModel: config.defaultModel,
+      rawKeys: {
+        gemini: config.geminiKey || "",
+        openai: config.openaiKey || "",
+        claude: config.anthropicKey || "",
+        groq: config.groqKey || "",
+      },
       maskedKeys: {
         gemini: maskApiKey(config.geminiKey || process.env.GEMINI_API_KEY),
         openai: maskApiKey(config.openaiKey || process.env.OPENAI_API_KEY),
