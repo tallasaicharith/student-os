@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { db, getOrCreateUser } from "@/lib/db";
 
 const INITIAL_HABIT_SEEDS = [
-  { id: "h-1", name: "Wake up at 4:00 AM", emoji: "🌅", order: 0, logs: [] },
-  { id: "h-2", name: "Gym Workout", emoji: "🏋️", order: 1, logs: [] },
-  { id: "h-3", name: "Drink 3L Water", emoji: "💧", order: 2, logs: [] },
-  { id: "h-4", name: "Gita Reading", emoji: "📖", order: 3, logs: [] },
-  { id: "h-5", name: "LeetCode Daily", emoji: "💻", order: 4, logs: [] },
-  { id: "h-6", name: "Protein Target", emoji: "🥩", order: 5, logs: [] },
-  { id: "h-7", name: "20 Pages Reading", emoji: "📚", order: 6, logs: [] },
-  { id: "h-8", name: "7 Hours Sleep", emoji: "😴", order: 7, logs: [] }
+  { id: "h-1", name: "Wake up at 5:00 AM", emoji: "🌅", order: 0, logs: [{ id: "l-1", date: new Date().toISOString(), done: true }] },
+  { id: "h-2", name: "Morning Gym Workout", emoji: "🏋️", order: 1, logs: [{ id: "l-2", date: new Date().toISOString(), done: true }] },
+  { id: "h-3", name: "Drink 3.5L Water", emoji: "💧", order: 2, logs: [{ id: "l-3", date: new Date().toISOString(), done: true }] },
+  { id: "h-4", name: "LeetCode Daily (2 Problems)", emoji: "💻", order: 3, logs: [{ id: "l-4", date: new Date().toISOString(), done: true }] },
+  { id: "h-5", name: "Read 20 Pages (Tech & Philosophy)", emoji: "📖", order: 4, logs: [{ id: "l-5", date: new Date().toISOString(), done: true }] },
+  { id: "h-6", name: "Deep Work Study Block (3 Hours)", emoji: "🧠", order: 5, logs: [] },
+  { id: "h-7", name: "Hit 140g Protein Target", emoji: "🥩", order: 6, logs: [{ id: "l-7", date: new Date().toISOString(), done: true }] },
+  { id: "h-8", name: "7.5 Hours Restful Sleep", emoji: "😴", order: 7, logs: [{ id: "l-8", date: new Date().toISOString(), done: true }] }
 ];
 
 // Global resilient fallback store
@@ -59,7 +59,7 @@ export async function GET() {
     }
   } catch (_e) {}
 
-  // Return resilient fallback habits store
+  // Return resilient fallback sample habits store
   return NextResponse.json((globalThis as any).__STUDENT_OS_HABITS);
 }
 
