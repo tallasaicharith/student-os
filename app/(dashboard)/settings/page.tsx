@@ -109,6 +109,9 @@ export default function SettingsPage() {
       if (data.maskedKeys) setMaskedKeys(data.maskedKeys);
 
       const savedGeminiKey = geminiKeyInput.trim();
+      if (savedGeminiKey) {
+        localStorage.setItem("studentos_gemini_key", savedGeminiKey);
+      }
       setGeminiKeyInput("");
       setOpenaiKeyInput("");
       setClaudeKeyInput("");

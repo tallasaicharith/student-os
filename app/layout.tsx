@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, Geist } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
 import "./globals.css";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "StudentOS", template: "%s | StudentOS" },
@@ -31,8 +26,8 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider>
-      <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
-        <body className={`${inter.variable} font-sans antialiased`}>
+      <html lang="en" suppressHydrationWarning className="font-sans">
+        <body className="font-sans antialiased bg-background text-foreground">
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"

@@ -81,9 +81,23 @@ export default function AIMentorPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Fetch Saved Conversations on Load
+  const [savedApiKey, setSavedApiKey] = useState<string>("");
+
+  // 1. Fetch Saved Conversations & AI Settings on Load
   useEffect(() => {
     fetchConversations();
+    // Load local storage key
+    const localKey = localStorage.getItem("studentos_gemini_key");
+    if (localKey) setSavedApiKey(localKey);
+
+    // Load server settings
+    fetch("/api/ai/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.defaultProvider) setProvider(data.defaultProvider as ProviderType);
+        if (data.defaultModel) setModelName(data.defaultModel);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

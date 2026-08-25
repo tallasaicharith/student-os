@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       messages,
-      apiKey,
+      apiKey: reqApiKey,
       provider = "gemini",
       model = "gemini-2.0-flash",
       mode = "general",
@@ -28,13 +28,33 @@ export async function POST(req: NextRequest) {
       return new Response("Messages array is required", { status: 400 });
     }
 
-    // 1. Process Multi-Turn History & Attachment Context
+    // 1. Automatically Resolve Saved API Key from Database if Not Passed in Body
+    let resolvedApiKey = reqApiKey ? String(reqApiKey).trim() : "";
+
+    if (!resolvedApiKey && userId !== "guest") {
+      try {
+        const config = await db.aIProviderConfig.findUnique({ where: { userId } });
+        if (config) {
+          if (provider === "gemini" && config.geminiKey) resolvedApiKey = config.geminiKey;
+          else if (provider === "openai" && config.openaiKey) resolvedApiKey = config.openaiKey;
+          else if (provider === "claude" && config.anthropicKey) resolvedApiKey = config.anthropicKey;
+          else if (provider === "groq" && config.groqKey) resolvedApiKey = config.groqKey;
+        }
+      } catch (_dbErr) {}
+    }
+
+    // Fallback to process.env if available
+    if (!resolvedApiKey) {
+      if (provider === "gemini") resolvedApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+      else if (provider === "openai") resolvedApiKey = process.env.OPENAI_API_KEY || "";
+      else if (provider === "claude") resolvedApiKey = process.env.ANTHROPIC_API_KEY || "";
+      else if (provider === "groq") resolvedApiKey = process.env.GROQ_API_KEY || "";
+    }
+
+    // 2. Process Multi-Turn History & Attachment Context
     const lastUserMessageObj = messages[messages.length - 1];
     const lastUserMessage = lastUserMessageObj?.content || "";
-
     const attachmentContext = AttachmentProcessor.processAttachments(attachments || lastUserMessageObj?.attachments);
-
-    // 2. Truncate long history while preserving multi-turn context
     const processedMessages = StudentContextService.manageConversationHistory(messages, 14);
 
     // 3. Minimum Necessary Student Context
@@ -44,16 +64,15 @@ export async function POST(req: NextRequest) {
       includeSchedule: mode === "study_plan",
     });
 
-    // 4. Multi-Turn Conversational System Instructions
+    // 4. System Instructions
     let modePrompt = `You are StudentOS Multi-Turn AI Copilot (${model}).
 CRITICAL MULTI-TURN INSTRUCTION:
 - You are in a continuous, natural multi-turn conversation with the student.
-- Understand pronouns ("it", "this", "that"), code references ("line 5", "the previous code"), and follow-up requests ("make it simpler", "give an example", "convert to Python", "question 2") seamlessly based on the prior conversation history.
+- Understand pronouns ("it", "this", "that"), code references ("line 5", "the previous code"), and follow-up requests ("make it simpler", "give an example", "convert to Python", "question 2") seamlessly based on prior history.
 - Answer directly, accurately, and thoroughly with clear markdown tables and syntax-highlighted code blocks.`;
 
     if (mode === "explain") {
-      modePrompt = `You are StudentOS Concept Explainer.
-Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Real-world Analogy, 4. Code Example, 5. Common Mistakes, 6. Quick Test, 7. Summary. Maintain multi-turn memory.`;
+      modePrompt = `You are StudentOS Concept Explainer. Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Real-world Analogy, 4. Code Example, 5. Common Mistakes, 6. Quick Test, 7. Summary. Maintain multi-turn memory.`;
     } else if (mode === "code_review") {
       modePrompt = `You are StudentOS Code Reviewer. Analyze code for bugs, edge cases, O(N) time/space complexity, and provide corrected clean code. Maintain multi-turn memory.`;
     } else if (mode === "study_plan") {
@@ -79,29 +98,29 @@ Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Rea
         model: routed.model,
         messages: processedMessages,
         systemPrompt,
-        apiKey,
+        apiKey: resolvedApiKey,
       });
     } catch (_primaryErr) {
-      // Fallback execution
-      const fallbackName = routed.provider === "gemini" ? "groq" : "gemini";
-      const fallbackProvider = aiRegistry.getProvider(fallbackName);
+      // Graceful Stream Fallback if API key missing or provider error
+      const encoder = new TextEncoder();
+      const pName = String(provider).toUpperCase();
+      const fallbackMsg = `⚠️ API Key Action Required:\n\nYour ${pName} API Key is missing or invalid.\n\nTo fix this permanently so you never have to re-enter it:\n1. Go to Settings (/settings)\n2. Paste your Google AI Studio key (starts with AIza...)\n3. Click Save All Settings\n\nOnce saved, StudentOS stores your key securely in the database for your account permanently!`;
 
-      stream = await fallbackProvider.stream({
-        provider: fallbackName,
-        model: "gemini-2.0-flash",
-        messages: processedMessages,
-        systemPrompt: `${systemPrompt}\n\n[Note: Fallback response active]`,
+      stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(fallbackMsg));
+          controller.close();
+        },
       });
     }
 
-    // 6. Asynchronous Database Persistence (Conversation + Messages + Usage)
+    // 6. Asynchronous Database Persistence
     const latencyMs = Date.now() - startTime;
     (async () => {
       try {
         let activeConvId = reqConversationId;
 
         if (!activeConvId) {
-          // Auto-generate short title from first 6 words of first message
           const generatedTitle = lastUserMessage.split(" ").slice(0, 5).join(" ") || "New Conversation";
           const conv = await db.aIConversation.create({
             data: {
@@ -115,7 +134,6 @@ Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Rea
           activeConvId = conv.id;
         }
 
-        // Record User Message
         await db.aIMessage.create({
           data: {
             conversationId: activeConvId,
@@ -125,7 +143,6 @@ Structure concept explanations with: 1. Simple Explanation, 2. Intuition, 3. Rea
           },
         });
 
-        // Record Usage
         await db.aIUsage.create({
           data: {
             userId,
